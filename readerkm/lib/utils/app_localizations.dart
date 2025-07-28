@@ -1,0 +1,31 @@
+class AppLocalizations {
+  static const String appTitle = 'ReaderKM - Calculadora de Gastos';
+  static const String scanInstrumentPanel = 'Escanea el cuadro de instrumentos';
+  static const String scanDescription = 'Apunta la cámara a los datos de kilometraje y consumo de tu vehículo';
+  static const String scanButton = 'Escanear Cuadro';
+  static const String tripHistory = 'Historial de Viajes';
+  static const String noTripsMessage = 'No hay viajes registrados.\nComienza escaneando el cuadro de tu vehículo.';
+  static const String cameraPermissionTitle = 'Permisos de Cámara';
+  static const String cameraPermissionMessage = 'Esta aplicación necesita acceso a la cámara para escanear el cuadro de instrumentos de tu vehículo.';
+  static const String cancel = 'Cancelar';
+  static const String settings = 'Configuración';
+  static const String scanInstrumentPanelTitle = 'Escanear Cuadro de Instrumentos';
+  static const String frameInstrumentPanel = 'Encuadra el cuadro de instrumentos';
+  static const String frameInstrumentDescription = 'Asegúrate de que los datos de kilometraje\ny consumo sean visibles';
+  static const String processing = 'Procesando imagen...';
+  static const String extractedData = 'Datos Extraídos';
+  static const String recognizedText = 'Texto reconocido:';
+  static const String noTextRecognized = 'No se pudo reconocer texto';
+  static const String confirmData = 'Confirma o edita los datos:';
+  static const String tripKilometers = 'Kilómetros del viaje';
+  static const String consumption = 'Consumo';
+  static const String fuelPrice = 'Precio de la gasolina';
+  static const String costCalculation = 'Cálculo del Gasto:';
+  static const String litersConsumed = 'Litros consumidos';
+  static const String totalCost = 'Costo total';
+  static const String saveTrip = 'Guardar Viaje';
+  static const String enterKilometers = 'Por favor ingresa los kilómetros';
+  static const String enterConsumption = 'Por favor ingresa el consumo';
+  static const String enterFuelPrice = 'Por favor ingresa el precio de la gasolina';
+  static const String enterValidNumber = 'Por favor ingresa un número válido';
+}
