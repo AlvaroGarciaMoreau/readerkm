@@ -63,7 +63,7 @@ Este proyecto fue desarrollado y probado específicamente con un **Hyundai Tucso
 ## 📖 Cómo Usar
 
 ### 1. Configuración Inicial
-- Al abrir la app, toca el icono de engranaje (⚙️) en la barra superior
+- Al abrir la app, toca el icono de gasolina (⛽) en la barra superior
 - Introduce el precio actual de la gasolina en €/L
 - Este precio se guardará automáticamente para futuros cálculos
 
