@@ -5,21 +5,26 @@ Una aplicación Flutter para Android que permite leer automáticamente los datos
 ## 🌟 Características Principales
 
 - **📸 Escaneo automático**: Utiliza la cámara para capturar el cuadro de instrumentos
-- **🤖 OCR inteligente**: Extrae automáticamente kilómetros recorridos y consumo (km/L)
-- **💰 Cálculo de costos**: Calcula el gasto en combustible del viaje
+- **🤖 OCR inteligente**: Extrae automáticamente kilómetros recorridos, consumo (km/L), tiempo de viaje y odómetro total
+- **💰 Cálculo avanzado de costos**: Calcula el gasto en combustible y consumo en L/100km
 - **⚙️ Configuración persistente**: Guarda el precio de la gasolina para futuros cálculos
-- **📊 Historial de viajes**: Mantiene un registro de todos tus viajes
+- **📊 Historial completo**: Mantiene un registro detallado de todos tus viajes con información extendida
 - **✏️ Edición manual**: Permite corregir datos extraídos automáticamente
-- **📱 Interfaz intuitiva**: Diseño limpio y fácil de usar
+- **⏱️ Análisis temporal**: Captura y muestra el tiempo de duración de cada viaje
+- **� Seguimiento del odómetro**: Registra los kilómetros totales del vehículo
+- **�📱 Interfaz intuitiva**: Diseño limpio, modular y fácil de usar
 
 ## 🚗 Vehículo de Referencia
 
 Este proyecto fue desarrollado y probado específicamente con un **Hyundai Tucson Híbrido 2025** como vehículo de referencia. Los algoritmos de reconocimiento de texto están optimizados para detectar el formato específico del cuadro de instrumentos de este modelo, aunque pueden funcionar con otros vehículos que muestren datos similares.
 
 ### Datos Reconocidos del Tucson Híbrido 2025:
-- **Kilómetros del viaje**: Lectura del odómetro parcial (Trip A/B)
-- **Consumo instantáneo**: Valor en km/L mostrado en la pantalla digital
-- **Formato típico**: "15.8 km/L" y valores de kilometraje
+- **Kilómetros del viaje**: Lectura del odómetro parcial (Trip A/B) - valor con icono de flecha →
+- **Consumo instantáneo**: Valor en km/L mostrado en la pantalla digital con icono de surtidor +
+- **Tiempo de viaje**: Duración del trayecto en formato hh:mm con icono de reloj ⏰
+- **Kilómetros totales**: Lectura del odómetro total del vehículo (valores >1000 km)
+- **Autonomía**: Se ignora correctamente la autonomía restante (valor con surtidor ⛽)
+- **Formatos reconocidos**: "13.7 km/L", "10.1 km", "0:16 h:m", "1077 km"
 
 ## 🛠️ Tecnologías Utilizadas
 
@@ -68,47 +73,93 @@ Este proyecto fue desarrollado y probado específicamente con un **Hyundai Tucso
 - Este precio se guardará automáticamente para futuros cálculos
 
 ### 2. Escanear el Cuadro de Instrumentos
-- Toca el botón "Escanear Cuadro de Instrumentos"
+- Toca el botón "Escanear Cuadro"
 - Permite el acceso a la cámara cuando se solicite
 - Encuadra el cuadro de instrumentos de tu vehículo dentro del marco blanco
-- Asegúrate de que sean visibles:
-  - Los kilómetros del viaje (Trip A o Trip B)
-  - El consumo en km/L
+- Asegúrate de que sean claramente visibles:
+  - Los kilómetros del viaje (Trip A o Trip B) con icono de flecha →
+  - El consumo en km/L con icono de surtidor +
+  - El tiempo de viaje con icono de reloj ⏰ (opcional)
+  - Los kilómetros totales del odómetro (opcional)
 - Toca el botón de captura (📷)
 
 ### 3. Revisar y Confirmar Datos
-- La app mostrará los datos extraídos automáticamente
-- **Detección automática**: Verás qué datos se detectaron correctamente (✅) o fallaron (❌)
+- La app mostrará los datos extraídos automáticamente con indicadores de detección:
+  - ✅ **Kilómetros de viaje**: Valor detectado del odómetro parcial
+  - ✅ **Consumo**: Valor en km/L detectado automáticamente
+  - ✅ **Tiempo de viaje**: Duración detectada (si está visible)
+  - ✅ **Km totales**: Odómetro total detectado (si está visible)
+- **Detección inteligente**: El sistema ignora automáticamente la autonomía restante
 - **Edición manual**: Puedes corregir cualquier valor si es necesario
-- **Cálculo en tiempo real**: El costo se actualiza automáticamente
+- **Cálculo en tiempo real**: El costo total y L/100km se actualiza automáticamente
 - Toca "Guardar Viaje" para registrar el viaje
 
-### 4. Historial
+### 4. Historial Completo
 - Consulta todos tus viajes guardados en la pantalla principal
-- Cada entrada muestra: fecha, distancia, consumo, precio y costo total
+- Cada entrada muestra información detallada:
+  - Fecha y hora del viaje
+  - Distancia recorrida
+  - Consumo en km/L y L/100km
+  - Precio del combustible utilizado
+  - Costo total del viaje
+  - Tiempo de duración (si se detectó)
+  - Kilómetros del odómetro (si se detectó)
 
 ## 🔧 Estructura del Proyecto
 
 ```
 lib/
-├── main.dart                 # Punto de entrada de la aplicación
+├── main.dart                    # Punto de entrada con configuración de orientación
+├── models/
+│   └── trip_data.dart          # Modelo de datos de viajes con campos extendidos
+├── services/
+│   └── preferences_service.dart # Servicio de persistencia de datos
+├── widgets/
+│   ├── trip_card.dart          # Widget de tarjeta de viaje con información completa
+│   └── camera_scan_section.dart # Widget de sección de escaneo
+├── utils/
+│   └── dialog_utils.dart       # Utilidades para diálogos centralizados
 ├── screens/
-│   ├── home_screen.dart      # Pantalla principal con historial
-│   └── camera_screen.dart    # Pantalla de cámara y OCR
-└── test_extraction.dart      # Pruebas de extracción de datos
+│   ├── home_screen.dart        # Pantalla principal refactorizada
+│   └── camera_screen.dart      # Pantalla de cámara con OCR mejorado
+└── test_extraction.dart        # Pruebas de extracción de datos
 ```
 
-## 🎯 Algoritmo de Reconocimiento
+## 🎯 Algoritmo de Reconocimiento OCR Avanzado
 
-El sistema utiliza múltiples patrones regex para maximizar la precisión:
+El sistema utiliza un algoritmo de reconocimiento contextual específicamente optimizado para el Hyundai Tucson Híbrido 2025:
 
-### Detección de Consumo (km/L):
-- `(\d+(?:[.,]\d+)?)\s*km\s*/\s*[lL]` - Formato estándar: "15.8 km/L"
-- `(\d+(?:[.,]\d+)?)\s*[kK][mM]/[lL]` - Formato alternativo: "15.8 KM/L"
+### Reconocimiento Inteligente por Contexto:
+- **Análisis posicional**: Examina el texto línea por línea para identificar contextos
+- **Filtrado inteligente**: Ignora automáticamente la autonomía restante (ej: "280 km" con surtidor)
+- **Validación por rangos**: Cada tipo de dato tiene rangos de validación específicos
 
-### Detección de Kilómetros:
-- Identificación inteligente de valores pequeños (viaje) vs. grandes (totales)
-- Filtrado automático para evitar confusión con valores de consumo
+### Detección Específica por Tipo:
+
+#### 🚗 **Kilómetros de Viaje**:
+- Busca valores cerca del contexto "viaje actual"
+- Rango válido: 0.1 - 999 km
+- Prioriza valores pequeños típicos de trayectos
+
+#### ⛽ **Consumo (km/L)**:
+- Patrones: `13.7 km/L`, `13.7km/L`, `13.7 KM/L`
+- Rango válido: 5 - 50 km/L (típico para híbridos)
+- Reconoce múltiples formatos y variaciones
+
+#### ⏱️ **Tiempo de Viaje**:
+- Formato: `0:16`, `1:30 h:m`, `2:45`
+- Validación: horas (0-23), minutos (0-59)
+- Asociado con iconos de reloj
+
+#### 🔢 **Kilómetros Totales**:
+- Valores ≥ 1000 km (típico del odómetro)
+- Localización: parte inferior del cuadro
+- Diferenciación automática de valores de viaje
+
+### Cálculos Automáticos:
+- **Costo total**: `(km ÷ consumo) × precio combustible`
+- **L/100km**: `(litros consumidos ÷ km) × 100`
+- **Litros consumidos**: `km ÷ consumo`
 
 ## 🐛 Solución de Problemas
 
@@ -116,11 +167,23 @@ El sistema utiliza múltiples patrones regex para maximizar la precisión:
 - Verifica que la app tenga permisos de cámara
 - Reinicia la aplicación si es necesario
 
-### OCR no detecta los datos
-- Asegúrate de que haya buena iluminación
+### OCR no detecta los datos correctamente
+- Asegúrate de que haya buena iluminación uniforme
 - El cuadro de instrumentos debe estar limpio y sin reflejos
 - Mantén el móvil estable durante la captura
-- Los números deben ser claramente visibles
+- Los números deben ser claramente visibles y legibles
+- Evita sombras o brillos que puedan interferir
+- Si persisten errores, utiliza la edición manual
+
+### La app confunde diferentes tipos de kilómetros
+- El algoritmo está optimizado para ignorar la autonomía automáticamente
+- Si detecta valores incorrectos, verifica que el contexto "viaje actual" sea visible
+- Los valores pequeños (<1000) se interpretan como viaje, los grandes (≥1000) como totales
+
+### Datos faltantes en el historial
+- **Tiempo de viaje**: Solo se muestra si fue detectado en el cuadro
+- **Km totales**: Solo aparece si el odómetro total era visible durante el escaneo
+- Los datos opcionales no afectan el cálculo de costos
 
 ### Datos incorrectos extraídos
 - Utiliza la función de edición manual en el diálogo de resultados
@@ -136,6 +199,22 @@ Las contribuciones son bienvenidas. Para contribuir:
 4. Push a la rama (`git push origin feature/AmazingFeature`)
 5. Abre un Pull Request
 
+## 🔄 Historial de Versiones
+
+### v2.0.0 - Reconocimiento OCR Avanzado
+- ✅ Algoritmo OCR específico para Hyundai Tucson Híbrido 2025
+- ✅ Detección de tiempo de viaje y kilómetros totales
+- ✅ Cálculo de consumo en L/100km
+- ✅ Refactorización completa de la arquitectura
+- ✅ Filtrado inteligente de datos irrelevantes
+- ✅ Interfaz mejorada con más información
+
+### v1.0.0 - Versión Inicial
+- ✅ Reconocimiento básico de km y consumo
+- ✅ Cálculo de costos de combustible
+- ✅ Historial de viajes
+- ✅ Configuración de precios
+
 ## 📝 Licencia
 
 Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
@@ -149,7 +228,8 @@ Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más det
 - Google ML Kit por el potente motor de OCR
 - Flutter team por el excelente framework
 - La comunidad de Flutter por los plugins utilizados
+- Hyundai por el diseño claro y legible del cuadro de instrumentos
 
 ---
 
-**Nota**: Esta aplicación fue desarrollada como ejemplo educativo y está optimizada para el cuadro de instrumentos del Hyundai Tucson Híbrido 2025. Los resultados pueden variar con otros modelos de vehículos.
+**Nota**: Esta aplicación fue desarrollada y está específicamente optimizada para el cuadro de instrumentos del **Hyundai Tucson Híbrido 2025**. El algoritmo de reconocimiento OCR ha sido entrenado con los patrones específicos de este modelo. Los resultados pueden variar con otros modelos de vehículos, aunque la funcionalidad básica debería mantenerse para cuadros con formatos similares.

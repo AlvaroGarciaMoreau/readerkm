@@ -40,6 +40,8 @@ class TripCard extends StatelessWidget {
           'Consumo: ${trip.consumption.toStringAsFixed(2)} km/L\n'
           'Precio: €${trip.fuelPrice.toStringAsFixed(2)}/L\n'
           'L/100km: ${trip.litersPer100Km.toStringAsFixed(2)}\n'
+          '${trip.travelTime != null ? 'Tiempo: ${trip.travelTime}\n' : ''}'
+          '${trip.totalKm != null ? 'Odómetro: ${trip.totalKm!.toStringAsFixed(0)} km\n' : ''}'
           '$dateFormat a las $timeFormat',
         ),
         trailing: Row(

@@ -234,83 +234,187 @@ class _CameraScreenState extends State<CameraScreen> {
     );
   }
 
-  Map<String, double?> _extractVehicleData(String text) {
-    final Map<String, double?> data = {
+  Map<String, dynamic> _extractVehicleData(String text) {
+    final Map<String, dynamic> data = {
       'totalKm': null,
       'tripKm': null,
       'consumption': null,
+      'travelTime': null, // Nuevo: tiempo de viaje
     };
 
-    print('🔍 ANÁLISIS DEL TEXTO OCR:');
+    print('🔍 ANÁLISIS AVANZADO DEL CUADRO HYUNDAI TUCSON:');
     print('Texto original: "$text"');
 
-    // Limpiar el texto
-    final cleanText = text.replaceAll('\n', ' ').replaceAll(RegExp(r'\s+'), ' ');
-    print('Texto limpio: "$cleanText"');
-    
-    // BUSCAR CONSUMO (km/L) CON PATRONES MEJORADOS
-    List<RegExp> consumptionPatterns = [
-      RegExp(r'(\d+(?:[.,]\d+)?)\s*km\s*/\s*[lL]', caseSensitive: false), // 15.8 km/L
-      RegExp(r'(\d+(?:[.,]\d+)?)\s*km/[lL]', caseSensitive: false), // 15.8 km/L (sin espacios)
-      RegExp(r'(\d+(?:[.,]\d+)?)\s*[kK][mM]\s*/\s*[lL]', caseSensitive: false), // 15.8 KM/L
-      RegExp(r'(\d+(?:[.,]\d+)?)\s*[kK][mM]/[lL]', caseSensitive: false), // 15.8 KM/L
-    ];
-    
-    print('🔥 Buscando consumo (km/L)...');
-    for (int i = 0; i < consumptionPatterns.length; i++) {
-      final pattern = consumptionPatterns[i];
-      final match = pattern.firstMatch(cleanText);
-      if (match != null) {
-        final consumptionStr = match.group(1)?.replaceAll(',', '.');
-        data['consumption'] = double.tryParse(consumptionStr ?? '');
-        print('✅ CONSUMO ENCONTRADO (patrón ${i+1}): "${match.group(0)}" → ${data['consumption']} km/L');
-        break;
-      } else {
-        print('❌ Patrón ${i+1} no coincide');
-      }
+    // Dividir el texto en líneas para análisis posicional
+    final lines = text.split('\n');
+    print('📋 Líneas detectadas: ${lines.length}');
+    for (int i = 0; i < lines.length; i++) {
+      print('  Línea $i: "${lines[i].trim()}"');
     }
+
+    // BUSCAR DATOS ESPECÍFICOS CON CONTEXTO POSICIONAL
     
-    // BUSCAR KILÓMETROS
-    print('🔥 Buscando kilómetros...');
-    final kmMatches = RegExp(r'(\d+(?:[.,]\d+)?)\s*km(?!\s*/)', caseSensitive: false)
-        .allMatches(cleanText);
+    // 1. BUSCAR KILOMETRAJE DE VIAJE (con icono de flecha →)
+    print('🎯 Buscando kilometraje de viaje...');
+    data['tripKm'] = _extractTripKilometers(lines);
     
-    List<double> kmValues = [];
-    for (final match in kmMatches) {
-      final kmStr = match.group(1)?.replaceAll(',', '.');
-      final kmValue = double.tryParse(kmStr ?? '');
-      if (kmValue != null && kmValue != data['consumption']) {
-        kmValues.add(kmValue);
-        print('📏 Km encontrado: "${match.group(0)}" → $kmValue km');
-      }
-    }
+    // 2. BUSCAR CONSUMO (km/L con icono de surtidor +)
+    print('⛽ Buscando consumo km/L...');
+    data['consumption'] = _extractConsumption(lines);
     
-    // ASIGNAR KILÓMETROS DE MANERA INTELIGENTE
-    if (kmValues.isNotEmpty) {
-      kmValues.sort();
-      print('📊 Valores km ordenados: $kmValues');
-      
-      // Separar valores pequeños (probable viaje) de grandes (probable total)
-      final smallValues = kmValues.where((v) => v < 1000).toList();
-      final largeValues = kmValues.where((v) => v >= 1000).toList();
-      
-      if (smallValues.isNotEmpty) {
-        data['tripKm'] = smallValues.last; // El más grande de los pequeños
-        print('✅ VIAJE ASIGNADO: ${data['tripKm']} km (del rango pequeño)');
-      }
-      if (largeValues.isNotEmpty) {
-        data['totalKm'] = largeValues.first; // El más pequeño de los grandes
-        print('✅ TOTAL ASIGNADO: ${data['totalKm']} km (del rango grande)');
-      }
-    }
+    // 3. BUSCAR TIEMPO DE VIAJE (con icono de reloj)
+    print('⏱️ Buscando tiempo de viaje...');
+    data['travelTime'] = _extractTravelTime(lines);
+    
+    // 4. BUSCAR KILOMETRAJE TOTAL DEL VEHÍCULO
+    print('🚗 Buscando kilometraje total...');
+    data['totalKm'] = _extractTotalKilometers(lines);
 
     print('🎯 RESULTADOS FINALES:');
     print('   - Kilómetros del viaje: ${data['tripKm']} km');
     print('   - Consumo: ${data['consumption']} km/L');
+    print('   - Tiempo de viaje: ${data['travelTime']}');
     print('   - Kilómetros totales: ${data['totalKm']} km');
     print('=' * 50);
 
     return data;
+  }
+
+  // Extraer kilómetros de viaje (buscar valores pequeños con contexto de "viaje actual")
+  double? _extractTripKilometers(List<String> lines) {
+    // Buscar líneas que contengan "viaje", "actual", "trip" o estén cerca de estos contextos
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i].toLowerCase();
+      
+      // Si encuentra contexto de viaje, buscar números en líneas cercanas
+      if (line.contains('viaje') || line.contains('actual') || line.contains('trip')) {
+        print('🔍 Contexto de viaje encontrado en línea $i: "${lines[i]}"');
+        
+        // Buscar en las siguientes 3 líneas
+        for (int j = i; j < i + 4 && j < lines.length; j++) {
+          final kmMatch = RegExp(r'(\d+(?:[.,]\d+)?)\s*km(?!\s*/)', caseSensitive: false)
+              .firstMatch(lines[j]);
+          
+          if (kmMatch != null) {
+            final kmStr = kmMatch.group(1)?.replaceAll(',', '.');
+            final kmValue = double.tryParse(kmStr ?? '');
+            
+            // Validar que sea un valor típico de viaje (entre 0.1 y 999 km)
+            if (kmValue != null && kmValue >= 0.1 && kmValue < 1000) {
+              print('✅ Kilómetros de viaje encontrados: $kmValue km');
+              return kmValue;
+            }
+          }
+        }
+      }
+    }
+    
+    // Fallback: buscar el menor valor de km que no sea consumo
+    final allKmValues = <double>[];
+    for (final line in lines) {
+      final matches = RegExp(r'(\d+(?:[.,]\d+)?)\s*km(?!\s*/)', caseSensitive: false)
+          .allMatches(line);
+      
+      for (final match in matches) {
+        final kmStr = match.group(1)?.replaceAll(',', '.');
+        final kmValue = double.tryParse(kmStr ?? '');
+        if (kmValue != null && kmValue >= 0.1 && kmValue < 1000) {
+          allKmValues.add(kmValue);
+        }
+      }
+    }
+    
+    if (allKmValues.isNotEmpty) {
+      allKmValues.sort();
+      final tripKm = allKmValues.first; // El más pequeño probablemente es el viaje
+      print('✅ Kilómetros de viaje (fallback): $tripKm km');
+      return tripKm;
+    }
+    
+    print('❌ No se encontraron kilómetros de viaje');
+    return null;
+  }
+
+  // Extraer consumo km/L (buscar patrones específicos de consumo)
+  double? _extractConsumption(List<String> lines) {
+    final consumptionPatterns = [
+      RegExp(r'(\d+(?:[.,]\d+)?)\s*km\s*/\s*[lL]', caseSensitive: false),
+      RegExp(r'(\d+(?:[.,]\d+)?)\s*km/[lL]', caseSensitive: false),
+      RegExp(r'(\d+(?:[.,]\d+)?)\s*[kK][mM]\s*/\s*[lL]', caseSensitive: false),
+      RegExp(r'(\d+(?:[.,]\d+)?)\s*[kK][mM]/[lL]', caseSensitive: false),
+    ];
+    
+    for (final line in lines) {
+      for (int i = 0; i < consumptionPatterns.length; i++) {
+        final match = consumptionPatterns[i].firstMatch(line);
+        if (match != null) {
+          final consumptionStr = match.group(1)?.replaceAll(',', '.');
+          final consumption = double.tryParse(consumptionStr ?? '');
+          
+          // Validar que sea un valor típico de consumo (entre 5 y 50 km/L para híbridos)
+          if (consumption != null && consumption >= 5 && consumption <= 50) {
+            print('✅ Consumo encontrado: $consumption km/L (patrón ${i+1})');
+            return consumption;
+          }
+        }
+      }
+    }
+    
+    print('❌ No se encontró consumo km/L');
+    return null;
+  }
+
+  // Extraer tiempo de viaje (formato hh:mm)
+  String? _extractTravelTime(List<String> lines) {
+    final timePattern = RegExp(r'(\d{1,2}):(\d{2})\s*(?:h[mr]?|hrs?|min)?', caseSensitive: false);
+    
+    for (final line in lines) {
+      final match = timePattern.firstMatch(line);
+      if (match != null) {
+        final hours = int.tryParse(match.group(1) ?? '0') ?? 0;
+        final minutes = int.tryParse(match.group(2) ?? '0') ?? 0;
+        
+        // Validar que sea un tiempo razonable (0-23h, 0-59min)
+        if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+          final timeStr = '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}';
+          print('✅ Tiempo de viaje encontrado: $timeStr');
+          return timeStr;
+        }
+      }
+    }
+    
+    print('❌ No se encontró tiempo de viaje');
+    return null;
+  }
+
+  // Extraer kilómetros totales del vehículo (valores grandes, típicamente >1000)
+  double? _extractTotalKilometers(List<String> lines) {
+    final allKmValues = <double>[];
+    
+    for (final line in lines) {
+      final matches = RegExp(r'(\d+(?:[.,]\d+)?)\s*km(?!\s*/)', caseSensitive: false)
+          .allMatches(line);
+      
+      for (final match in matches) {
+        final kmStr = match.group(1)?.replaceAll(',', '.');
+        final kmValue = double.tryParse(kmStr ?? '');
+        
+        // Buscar valores grandes típicos del odómetro total
+        if (kmValue != null && kmValue >= 1000) {
+          allKmValues.add(kmValue);
+        }
+      }
+    }
+    
+    if (allKmValues.isNotEmpty) {
+      allKmValues.sort();
+      final totalKm = allKmValues.last; // El más grande probablemente es el total
+      print('✅ Kilómetros totales encontrados: $totalKm km');
+      return totalKm;
+    }
+    
+    print('❌ No se encontraron kilómetros totales');
+    return null;
   }
 
   @override
@@ -323,7 +427,7 @@ class _CameraScreenState extends State<CameraScreen> {
 
 class ResultsDialog extends StatefulWidget {
   final String recognizedText;
-  final Map<String, double?> extractedData;
+  final Map<String, dynamic> extractedData;
   final double defaultFuelPrice;
   final Function(TripData) onSave;
 
@@ -436,6 +540,18 @@ class _ResultsDialogState extends State<ResultsDialog> {
                         label: 'Consumo',
                         value: widget.extractedData['consumption'],
                         unit: 'km/L',
+                      ),
+                      _buildDetectionRowString(
+                        icon: Icons.schedule,
+                        label: 'Tiempo',
+                        value: widget.extractedData['travelTime'],
+                        unit: '',
+                      ),
+                      _buildDetectionRow(
+                        icon: Icons.car_crash,
+                        label: 'Km totales',
+                        value: widget.extractedData['totalKm'],
+                        unit: 'km',
                       ),
                     ],
                   ),
@@ -557,6 +673,39 @@ class _ResultsDialogState extends State<ResultsDialog> {
     );
   }
 
+  Widget _buildDetectionRowString({
+    required IconData icon,
+    required String label,
+    required String? value,
+    required String unit,
+  }) {
+    final isDetected = value != null && value.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.blue),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '$label: ${isDetected ? '$value $unit' : 'No detectado'}',
+              style: TextStyle(
+                fontSize: 12,
+                color: isDetected ? Colors.green.shade700 : Colors.red.shade700,
+                fontWeight: isDetected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ),
+          Icon(
+            isDetected ? Icons.check_circle : Icons.error,
+            size: 16,
+            color: isDetected ? Colors.green : Colors.red,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCostCalculation() {
     final tripKm = double.tryParse(_tripKmController.text) ?? 0;
     final consumption = double.tryParse(_consumptionController.text) ?? 0;
@@ -617,12 +766,18 @@ class _ResultsDialogState extends State<ResultsDialog> {
       final totalCost = litersUsed * fuelPrice;
       final litersPer100Km = (litersUsed / tripKm) * 100;
 
+      // Obtener datos adicionales extraídos
+      final travelTime = widget.extractedData['travelTime'] as String?;
+      final totalKm = widget.extractedData['totalKm'] as double?;
+
       final tripData = TripData(
         distance: tripKm,
         consumption: consumption,
         fuelPrice: fuelPrice,
         totalCost: totalCost,
         litersPer100Km: litersPer100Km,
+        travelTime: travelTime,
+        totalKm: totalKm,
         date: DateTime.now(),
       );
 
