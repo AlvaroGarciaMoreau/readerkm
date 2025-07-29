@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import '../main.dart';
-import 'home_screen.dart';
+import '../models/trip_data.dart';
 
 class CameraScreen extends StatefulWidget {
   final double defaultFuelPrice;
@@ -564,6 +564,7 @@ class _ResultsDialogState extends State<ResultsDialog> {
     
     final litersUsed = consumption > 0 ? tripKm / consumption : 0;
     final totalCost = litersUsed * fuelPrice;
+    final litersPer100Km = tripKm > 0 ? (litersUsed / tripKm) * 100 : 0;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -592,6 +593,15 @@ class _ResultsDialogState extends State<ResultsDialog> {
               color: Colors.green,
             ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            'Consumo: ${litersPer100Km.toStringAsFixed(2)} L/100km',
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: Colors.blue,
+            ),
+          ),
         ],
       ),
     );
@@ -605,12 +615,14 @@ class _ResultsDialogState extends State<ResultsDialog> {
       
       final litersUsed = tripKm / consumption;
       final totalCost = litersUsed * fuelPrice;
+      final litersPer100Km = (litersUsed / tripKm) * 100;
 
       final tripData = TripData(
         distance: tripKm,
         consumption: consumption,
         fuelPrice: fuelPrice,
         totalCost: totalCost,
+        litersPer100Km: litersPer100Km,
         date: DateTime.now(),
       );
 
