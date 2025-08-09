@@ -1,4 +1,5 @@
 class TripData {
+  final int? id; // Nuevo campo para el identificador único
   final double distance;
   final double consumption;
   final double fuelPrice;
@@ -9,6 +10,7 @@ class TripData {
   final DateTime date;
 
   TripData({
+    this.id,
     required this.distance,
     required this.consumption,
     required this.fuelPrice,
@@ -22,6 +24,7 @@ class TripData {
   // Convertir a JSON para guardar en SharedPreferences
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'distance': distance,
       'consumption': consumption,
       'fuelPrice': fuelPrice,
@@ -36,6 +39,7 @@ class TripData {
   // Crear desde JSON al cargar de SharedPreferences
   factory TripData.fromJson(Map<String, dynamic> json) {
     return TripData(
+      id: json['id'] != null ? int.tryParse(json['id'].toString()) : null,
       distance: json['distance'].toDouble(),
       consumption: json['consumption'].toDouble(),
       fuelPrice: json['fuelPrice'].toDouble(),
@@ -43,7 +47,7 @@ class TripData {
       litersPer100Km: json['litersPer100Km']?.toDouble() ?? 0.0,
       travelTime: json['travelTime'],
       totalKm: json['totalKm']?.toDouble(),
-      date: DateTime.fromMillisecondsSinceEpoch(json['date']),
+      date: DateTime.fromMillisecondsSinceEpoch(json['date'] ?? DateTime.now().millisecondsSinceEpoch),
     );
   }
 }

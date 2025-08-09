@@ -6,13 +6,16 @@ Una aplicación Flutter para Android que permite leer automáticamente los datos
 
 - **📸 Escaneo automático**: Utiliza la cámara para capturar el cuadro de instrumentos
 - **🤖 OCR inteligente**: Extrae automáticamente kilómetros recorridos, consumo (km/L), tiempo de viaje y odómetro total
-- **💰 Cálculo avanzado de costos**: Calcula el gasto en combustible y consumo en L/100km
+- **� Sincronización remota**: Guarda, lee y borra viajes en una base de datos MariaDB remota mediante backend PHP seguro
+- **🔐 Separación por usuario**: Cada usuario tiene su propio historial de viajes gracias a un identificador UUID único
+- **🗑️ Borrado seguro**: Permite eliminar viajes individuales de forma remota y segura
+- **�💰 Cálculo avanzado de costos**: Calcula el gasto en combustible y consumo en L/100km usando fórmulas detalladas
 - **⚙️ Configuración persistente**: Guarda el precio de la gasolina para futuros cálculos
-- **📊 Historial completo**: Mantiene un registro detallado de todos tus viajes con información extendida
+- **📊 Historial completo**: Mantiene un registro detallado de todos tus viajes con información extendida, sincronizado con la nube
 - **✏️ Edición manual**: Permite corregir datos extraídos automáticamente
 - **⏱️ Análisis temporal**: Captura y muestra el tiempo de duración de cada viaje
-- **� Seguimiento del odómetro**: Registra los kilómetros totales del vehículo
-- **�📱 Interfaz intuitiva**: Diseño limpio, modular y fácil de usar
+- **📏 Seguimiento del odómetro**: Registra los kilómetros totales del vehículo
+- **📱 Interfaz intuitiva**: Diseño limpio, modular y fácil de usar
 
 ## 🚗 Vehículo de Referencia
 
@@ -156,10 +159,30 @@ El sistema utiliza un algoritmo de reconocimiento contextual específicamente op
 - Localización: parte inferior del cuadro
 - Diferenciación automática de valores de viaje
 
-### Cálculos Automáticos:
-- **Costo total**: `(km ÷ consumo) × precio combustible`
-- **L/100km**: `(litros consumidos ÷ km) × 100`
-- **Litros consumidos**: `km ÷ consumo`
+### Cálculos Automáticos y Fórmulas:
+- **Litros consumidos**: `litros = distancia / consumo`  
+- **Costo total**: `costo = litros × precio combustible`  
+- **Consumo en L/100km**: `L/100km = (litros / distancia) × 100`  
+Todos los cálculos se realizan automáticamente al guardar el viaje y se almacenan en la base de datos.
+## 🌐 Integración con Base de Datos Remota
+
+La app está conectada a un backend PHP seguro que gestiona el almacenamiento, lectura y borrado de viajes en una base de datos MariaDB remota. Cada usuario tiene su propio historial gracias a un identificador UUID único que se genera y almacena localmente.
+
+### Funcionalidades de la base de datos:
+- **Guardar viaje**: Al confirmar un viaje, los datos se envían al backend y se almacenan en la base de datos remota.
+- **Leer historial**: Al abrir la app, se consulta el backend y se muestra el historial de viajes del usuario.
+- **Borrar viaje**: Se puede eliminar cualquier viaje individualmente; la operación es segura y solo afecta al usuario correspondiente.
+- **Separación por usuario**: Todos los datos están aislados por UUID, garantizando privacidad y seguridad.
+- **Respuestas robustas**: El backend siempre responde en formato JSON, incluso ante errores, para evitar fallos en la app.
+
+### Estructura de la tabla `viajes`:
+| id | user_uuid | distance | consumption | fuelPrice | totalCost | litersPer100Km | travelTime | totalKm | fecha |
+|----|-----------|----------|-------------|-----------|-----------|---------------|------------|---------|-------|
+
+### Seguridad y robustez
+- El backend valida todos los datos recibidos y nunca expone información sensible.
+- No existe opción de borrado masivo, solo individual y autenticado por UUID.
+- El código PHP está preparado para manejar errores de conexión y devolver mensajes claros a la app.
 
 ## 🐛 Solución de Problemas
 

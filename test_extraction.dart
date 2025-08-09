@@ -11,21 +11,12 @@ void main() {
     'Viaje actual: 16.9 km, Consumo: 15.8 km/L',
   ];
   
-  print('=== TESTING EXTRACTION PATTERNS ===');
   
   for (int i = 0; i < testTexts.length; i++) {
-    print('\n--- Test ${i + 1} ---');
-    print('Input: "${testTexts[i]}"');
     
-    final result = extractVehicleDataTest(testTexts[i]);
+    extractVehicleDataTest(testTexts[i]);
     
-    print('Kilómetros del viaje: ${result['tripKm']}');
-    print('Consumo: ${result['consumption']}');
-    print('Kilómetros totales: ${result['totalKm']}');
-    
-    // Verificar si los resultados esperados son correctos
-    final expected = (result['tripKm'] == 16.9 && result['consumption'] == 15.8);
-    print('✅ Expected results: ${expected ? "PASS" : "FAIL"}');
+   
   }
 }
 

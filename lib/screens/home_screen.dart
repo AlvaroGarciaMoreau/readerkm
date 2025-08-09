@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/trip_data.dart';
 import '../services/preferences_service.dart';
 import '../widgets/camera_scan_section.dart';
@@ -39,32 +42,108 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Future<String?> _getUserUuid() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? uuid = prefs.getString('user_uuid');
+    return uuid;
+  }
+
   Future<void> _loadTrips() async {
-    final loadedTrips = await PreferencesService.loadTrips();
-    setState(() {
-      trips = loadedTrips;
-    });
-  }
-
-  Future<void> _saveTrips() async {
-    await PreferencesService.saveTrips(trips);
-  }
-
-  void _deleteTrip(int index) {
-    DialogUtils.showDeleteTripDialog(context, () {
-      setState(() {
-        trips.removeAt(index);
-      });
-      
-      _saveTrips();
-      
+    try {
+      final url = Uri.parse('https://www.moreausoft.com/ReaderKM/listar_viajes.php');
+      final userUuid = await _getUserUuid();
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'user_uuid': userUuid}),
+      );
+      if (response.statusCode == 200) {
+        final resp = jsonDecode(response.body);
+        if (resp['success'] == true && resp['viajes'] != null) {
+          setState(() {
+            trips = (resp['viajes'] as List).map((json) => TripData.fromJson(json)).toList();
+          });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al cargar viajes: ${resp['error'] ?? response.body}')),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar viajes: \n${response.body}')),
+        );
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Viaje eliminado'),
-          backgroundColor: Colors.orange,
+        SnackBar(content: Text('Error de red al cargar viajes: $e')),
+      );
+    }
+  }
+
+  Future<void> _deleteTrip(int index) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Eliminar viaje?'),
+        content: const Text('¿Estás seguro de que deseas eliminar este viaje? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    final trip = trips[index];
+    final url = Uri.parse('https://www.moreausoft.com/ReaderKM/borrar_viaje.php');
+    try {
+      final userUuid = await _getUserUuid();
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'id': trip.id, 'user_uuid': userUuid}),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Viaje eliminado'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          await _loadTrips(); // Recargar la lista desde el backend
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al borrar: \n${data['error'] ?? response.body}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error de red al borrar: \n${response.body}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error de red al borrar: $e'),
+          backgroundColor: Colors.red,
         ),
       );
-    });
+    }
   }
 
   @override
@@ -116,11 +195,12 @@ class _HomeScreenState extends State<HomeScreen> {
               const Expanded(
                 child: Center(
                   child: Text(
-                    'No hay viajes registrados.\nComienza escaneando el cuadro de tu vehículo.',
+                    '¡Aún no has registrado ningún viaje!\nPulsa el botón de la cámara para guardar tu primer viaje y verás aquí tu historial. 🚗',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.grey,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -128,14 +208,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      floatingActionButton: trips.isNotEmpty
-          ? FloatingActionButton(
-              onPressed: _showClearHistoryDialog,
-              backgroundColor: Colors.red,
-              tooltip: 'Limpiar historial',
-              child: const Icon(Icons.delete_sweep, color: Colors.white),
-            )
-          : null,
+  // Botón flotante de borrar historial eliminado por requerimiento
     );
   }
 
@@ -150,6 +223,8 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context) => CameraScreen(defaultFuelPrice: _fuelPrice),
         ),
       );
+
+      if (!mounted) return;
       
       if (result != null) {
         setState(() {
@@ -157,7 +232,7 @@ class _HomeScreenState extends State<HomeScreen> {
         });
         
         // Guardar viajes en SharedPreferences
-        _saveTrips();
+        // _saveTrips(); // No es necesario guardar aquí, ya que los datos son remotos
         
         // Mostrar mensaje de confirmación
         ScaffoldMessenger.of(context).showSnackBar(
@@ -179,22 +254,7 @@ class _HomeScreenState extends State<HomeScreen> {
     DialogUtils.showPermissionDialog(context);
   }
 
-  void _showClearHistoryDialog() {
-    DialogUtils.showClearHistoryDialog(context, () {
-      setState(() {
-        trips.clear();
-      });
-      
-      _saveTrips();
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Historial limpiado'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    });
-  }
+  // _showClearHistoryDialog eliminado porque ya no se usa
 
   void _showFuelPriceDialog() {
     DialogUtils.showFuelPriceDialog(context, _fuelPrice, _saveFuelPrice);
