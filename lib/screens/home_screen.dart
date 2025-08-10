@@ -45,6 +45,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<String?> _getUserUuid() async {
     final prefs = await SharedPreferences.getInstance();
     String? uuid = prefs.getString('user_uuid');
+    if (uuid == null || uuid.isEmpty) {
+      // Generar y guardar un nuevo uuid
+      uuid = UniqueKey().toString();
+      await prefs.setString('user_uuid', uuid);
+    }
     return uuid;
   }
 

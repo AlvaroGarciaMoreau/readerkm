@@ -37,7 +37,7 @@ class TripCard extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Text(
-          'Consumo: ${trip.consumption.toStringAsFixed(2)} km/L\n'
+          'Consumo: ${trip.consumption.toStringAsFixed(2)} ${trip.consumptionUnit}\n'
           'Precio: €${trip.fuelPrice.toStringAsFixed(2)}/L\n'
           'L/100km: ${trip.litersPer100Km.toStringAsFixed(2)}\n'
           '${trip.travelTime != null ? 'Tiempo: ${trip.travelTime}\n' : ''}'

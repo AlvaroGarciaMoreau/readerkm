@@ -4,7 +4,6 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
 import '../main.dart';
 import '../models/trip_data.dart';
 
@@ -298,7 +297,7 @@ class _CameraScreenState extends State<CameraScreen> {
           final l100kmStr = l100kmMatch.group(1)?.replaceAll(',', '.');
           final l100km = double.tryParse(l100kmStr ?? '');
           if (l100km != null && l100km > 0) {
-            consumptionValue = 100 / l100km;
+            consumptionValue = l100km;
             consumptionUnit = 'L/100km';
             data['consumptionOriginal'] = l100km;
             break;
@@ -333,7 +332,7 @@ class _CameraScreenState extends State<CameraScreen> {
         final l100kmStr = fallbackL100.group(1)?.replaceAll(',', '.');
         final l100km = double.tryParse(l100kmStr ?? '');
         if (l100km != null && l100km > 0) {
-          consumptionValue = 100 / l100km;
+          consumptionValue = l100km;
           consumptionUnit = 'L/100km';
           data['consumptionOriginal'] = l100km;
           break;
@@ -509,6 +508,7 @@ class _ResultsDialogState extends State<ResultsDialog> {
     // Extraer y asignar los datos automáticamente
     final tripKm = widget.extractedData['tripKm'];
     final consumption = widget.extractedData['consumption'];
+    final consumptionUnit = widget.extractedData['consumptionUnit'] ?? 'km/L';
     _tripKmController.text = tripKm != null ? tripKm.toString() : '';
     _consumptionController.text = consumption != null ? consumption.toStringAsFixed(2) : '';
     _fuelPriceController = TextEditingController(
@@ -518,7 +518,7 @@ class _ResultsDialogState extends State<ResultsDialog> {
     if (widget.extractedData['consumption'] == null) {
       _manualConsumptionUnit = 'km/L';
     } else {
-      _manualConsumptionUnit = widget.extractedData['consumptionUnit'] ?? 'km/L';
+      _manualConsumptionUnit = consumptionUnit;
     }
     _tripKmController.addListener(_updateCalculation);
     _consumptionController.addListener(_updateCalculation);
@@ -528,10 +528,6 @@ class _ResultsDialogState extends State<ResultsDialog> {
   Future<void> _initUserUuid() async {
     final prefs = await SharedPreferences.getInstance();
     String? uuid = prefs.getString('user_uuid');
-    if (uuid == null) {
-      uuid = const Uuid().v4();
-      await prefs.setString('user_uuid', uuid);
-    }
     setState(() {
       _userUuid = uuid;
     });
@@ -806,20 +802,17 @@ class _ResultsDialogState extends State<ResultsDialog> {
     final tripKm = double.tryParse(_tripKmController.text) ?? 0;
     final consumption = double.tryParse(_consumptionController.text) ?? 0;
     final fuelPrice = double.tryParse(_fuelPriceController.text) ?? 0;
-    final isL100km = (widget.extractedData['consumptionUnit'] == 'L/100km') ||
-        (widget.extractedData['consumption'] == null && _manualConsumptionUnit == 'L/100km');
+    final isL100km = _manualConsumptionUnit == 'L/100km';
     double litersUsed = 0;
     double totalCost = 0;
     double litersPer100Km = 0;
     double kmPerLiter = 0;
     if (isL100km && consumption > 0) {
-      // L/100km: litros = (km * consumo) / 100
       litersUsed = (tripKm * consumption) / 100;
       totalCost = litersUsed * fuelPrice;
       litersPer100Km = consumption;
       kmPerLiter = consumption > 0 ? 100 / consumption : 0;
     } else if (consumption > 0) {
-      // km/L: litros = km / consumo
       litersUsed = tripKm / consumption;
       totalCost = litersUsed * fuelPrice;
       kmPerLiter = consumption;
@@ -857,7 +850,7 @@ class _ResultsDialogState extends State<ResultsDialog> {
           Text(
             isL100km
                 ? 'Consumo: ${litersPer100Km.toStringAsFixed(2)} L/100km (${kmPerLiter.toStringAsFixed(2)} km/L)'
-                : 'Consumo: ${litersPer100Km.toStringAsFixed(2)} L/100km',
+                : 'Consumo: ${kmPerLiter.toStringAsFixed(2)} km/L (${litersPer100Km.toStringAsFixed(2)} L/100km)',
             style: const TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 14,
@@ -919,33 +912,27 @@ class _ResultsDialogState extends State<ResultsDialog> {
       final tripKm = double.parse(_tripKmController.text);
       final consumption = double.parse(_consumptionController.text);
       final fuelPrice = double.parse(_fuelPriceController.text);
-      final isL100km = (widget.extractedData['consumptionUnit'] == 'L/100km') ||
-          (widget.extractedData['consumption'] == null && _manualConsumptionUnit == 'L/100km');
+      final isL100km = _manualConsumptionUnit == 'L/100km';
       double litersUsed = 0;
       double totalCost = 0;
       double litersPer100Km = 0;
-      double kmPerLiter = 0;
       if (isL100km && consumption > 0) {
-        // L/100km: litros = (km * consumo) / 100
         litersUsed = (tripKm * consumption) / 100;
         totalCost = litersUsed * fuelPrice;
         litersPer100Km = consumption;
-        kmPerLiter = consumption > 0 ? 100 / consumption : 0;
       } else if (consumption > 0) {
-        // km/L: litros = km / consumo
         litersUsed = tripKm / consumption;
         totalCost = litersUsed * fuelPrice;
-        kmPerLiter = consumption;
         litersPer100Km = tripKm > 0 ? (litersUsed / tripKm) * 100 : 0;
       }
 
-      // Obtener datos adicionales extraídos
       final travelTime = widget.extractedData['travelTime'] as String?;
       final totalKm = widget.extractedData['totalKm'] as double?;
 
       final tripData = TripData(
         distance: tripKm,
-        consumption: kmPerLiter, // siempre guardar en km/L
+        consumption: consumption, // Guardar el valor tal cual lo ve el usuario
+        consumptionUnit: _manualConsumptionUnit,
         fuelPrice: fuelPrice,
         totalCost: totalCost,
         litersPer100Km: litersPer100Km,
@@ -954,9 +941,7 @@ class _ResultsDialogState extends State<ResultsDialog> {
         date: DateTime.now(),
       );
 
-      // Llamada a la API PHP
       await enviarViajeABaseDeDatos(tripData);
-
       widget.onSave(tripData);
     }
   }
