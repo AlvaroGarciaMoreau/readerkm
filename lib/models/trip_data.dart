@@ -40,6 +40,22 @@ class TripData {
   }
 
   factory TripData.fromJson(Map<String, dynamic> json) {
+    DateTime parseDate(dynamic value) {
+      if (value == null) return DateTime.now();
+      if (value is int) {
+        // Epoch timestamp
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      }
+      if (value is String) {
+        // Intenta parsear como string tipo '2025-08-10 23:19:12'
+        try {
+          return DateTime.parse(value);
+        } catch (_) {
+          return DateTime.now();
+        }
+      }
+      return DateTime.now();
+    }
     return TripData(
       id: json['id'] != null ? int.tryParse(json['id'].toString()) : null,
       distance: json['distance'].toDouble(),
@@ -50,7 +66,7 @@ class TripData {
       litersPer100Km: json['litersPer100Km']?.toDouble() ?? 0.0,
       travelTime: json['travelTime'],
       totalKm: json['totalKm']?.toDouble(),
-      date: DateTime.fromMillisecondsSinceEpoch(json['date'] ?? DateTime.now().millisecondsSinceEpoch),
+      date: parseDate(json['fecha'] ?? json['date']),
     );
   }
 }

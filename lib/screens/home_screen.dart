@@ -65,8 +65,10 @@ class _HomeScreenState extends State<HomeScreen> {
       if (response.statusCode == 200) {
         final resp = jsonDecode(response.body);
         if (resp['success'] == true && resp['viajes'] != null) {
+          List<TripData> loadedTrips = (resp['viajes'] as List).map((json) => TripData.fromJson(json)).toList();
+          loadedTrips.sort((a, b) => b.date.compareTo(a.date)); // Orden descendente por fecha
           setState(() {
-            trips = (resp['viajes'] as List).map((json) => TripData.fromJson(json)).toList();
+            trips = loadedTrips;
           });
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
