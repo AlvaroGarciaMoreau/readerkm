@@ -1,5 +1,5 @@
 name: readerkm
-description: "A new Flutter project."
+description: "Lectura de kilometraje y consumo de combustible, para dar gastos en viajes."
 publish_to: 'none'
 version: 0.1.0
 

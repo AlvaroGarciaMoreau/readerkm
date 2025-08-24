@@ -3,6 +3,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/trip_data.dart';
 
 class PreferencesService {
+  static const String _emailKey = 'user_email';
+  // Guardar correo
+  static Future<void> saveEmail(String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_emailKey, email);
+  }
+
+  // Cargar correo
+  static Future<String?> loadEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_emailKey);
+  }
   static const String _fuelPriceKey = 'fuel_price';
   static const String _savedTripsKey = 'saved_trips';
   static const double _defaultFuelPrice = 1.50;

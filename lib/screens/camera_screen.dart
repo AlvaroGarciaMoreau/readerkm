@@ -1,9 +1,9 @@
+import '../services/preferences_service.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart';
 import '../models/trip_data.dart';
 
@@ -499,7 +499,6 @@ class _ResultsDialogState extends State<ResultsDialog> {
   late final TextEditingController _fuelPriceController;
   String _manualConsumptionUnit = 'km/L';
 
-  String? _userUuid;
 
   @override
   void initState() {
@@ -526,11 +525,6 @@ class _ResultsDialogState extends State<ResultsDialog> {
   }
 
   Future<void> _initUserUuid() async {
-    final prefs = await SharedPreferences.getInstance();
-    String? uuid = prefs.getString('user_uuid');
-    setState(() {
-      _userUuid = uuid;
-    });
   }
   
   void _updateCalculation() {
@@ -865,10 +859,7 @@ class _ResultsDialogState extends State<ResultsDialog> {
   Future<void> enviarViajeABaseDeDatos(TripData tripData) async {
     final url = Uri.parse('https://www.moreausoft.com/ReaderKM/guardar_viaje.php');
     try {
-      // Esperar a que el UUID esté inicializado
-      if (_userUuid == null) {
-        await _initUserUuid();
-      }
+      final email = await PreferencesService.loadEmail();
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -880,7 +871,7 @@ class _ResultsDialogState extends State<ResultsDialog> {
           'litersPer100Km': tripData.litersPer100Km,
           'travelTime': tripData.travelTime,
           'totalKm': tripData.totalKm,
-          'user_uuid': _userUuid,
+          'email': email,
         }),
       );
       debugPrint('Respuesta backend: \n${response.body}');

@@ -6,16 +6,19 @@ Una aplicación Flutter para Android que permite leer automáticamente los datos
 
 - **📸 Escaneo automático**: Utiliza la cámara para capturar el cuadro de instrumentos
 - **🤖 OCR inteligente**: Extrae automáticamente kilómetros recorridos, consumo (km/L), tiempo de viaje y odómetro total
-- **� Sincronización remota**: Guarda, lee y borra viajes en una base de datos MariaDB remota mediante backend PHP seguro
-- **🔐 Separación por usuario**: Cada usuario tiene su propio historial de viajes gracias a un identificador UUID único
+- **☁️ Sincronización remota**: Guarda, lee y borra viajes en una base de datos MariaDB remota mediante backend PHP seguro
+- **📧 Sincronización por email**: Cada usuario puede sincronizar sus viajes usando su correo electrónico
+- **💾 Almacenamiento local**: Modo offline disponible para guardar viajes localmente sin conexión
 - **🗑️ Borrado seguro**: Permite eliminar viajes individuales de forma remota y segura
-- **�💰 Cálculo avanzado de costos**: Calcula el gasto en combustible y consumo en L/100km usando fórmulas detalladas
+- **💰 Cálculo avanzado de costos**: Calcula el gasto en combustible y consumo en L/100km usando fórmulas detalladas
 - **⚙️ Configuración persistente**: Guarda el precio de la gasolina para futuros cálculos
-- **📊 Historial completo**: Mantiene un registro detallado de todos tus viajes con información extendida, sincronizado con la nube
+- **📊 Historial completo**: Mantiene un registro detallado de todos tus viajes con información extendida
 - **✏️ Edición manual**: Permite corregir datos extraídos automáticamente
 - **⏱️ Análisis temporal**: Captura y muestra el tiempo de duración de cada viaje
 - **📏 Seguimiento del odómetro**: Registra los kilómetros totales del vehículo
-- **📱 Interfaz intuitiva**: Diseño limpio, modular y fácil de usar
+- **🎨 Interfaz moderna**: Diseño de tarjetas mejorado con información clara y organizada
+- **🛡️ Manejo robusto de errores**: Gestión avanzada de errores de red y respuestas del servidor
+- **⏰ Advertencias inteligentes**: Sistema de notificaciones para configuración de email
 
 ## 🚗 Vehículo de Referencia
 
@@ -37,6 +40,8 @@ Este proyecto fue desarrollado y probado específicamente con un **Hyundai Tucso
 - **Google ML Kit**: Reconocimiento de texto (OCR)
 - **SharedPreferences**: Persistencia de datos local
 - **Permission Handler**: Gestión de permisos
+- **HTTP**: Comunicación con backend remoto
+- **JSON**: Serialización de datos
 
 ## 📋 Requisitos
 
@@ -45,6 +50,7 @@ Este proyecto fue desarrollado y probado específicamente con un **Hyundai Tucso
 - **Flutter**: Versión 3.0 o superior
 - **Permisos necesarios**:
   - Cámara (para escanear el cuadro de instrumentos)
+  - Internet (para sincronización remota)
 
 ## 🚀 Instalación
 
@@ -71,11 +77,18 @@ Este proyecto fue desarrollado y probado específicamente con un **Hyundai Tucso
 ## 📖 Cómo Usar
 
 ### 1. Configuración Inicial
-- Al abrir la app, toca el icono de gasolina (⛽) en la barra superior
+- Al abrir la app, se mostrará un diálogo para configurar tu email (opcional)
+- Toca el icono de gasolina (⛽) en la barra superior
 - Introduce el precio actual de la gasolina en €/L
 - Este precio se guardará automáticamente para futuros cálculos
 
-### 2. Escanear el Cuadro de Instrumentos
+### 2. Configuración de Sincronización (Opcional)
+- Toca el icono de configuración (⚙️) en la barra superior
+- Introduce tu correo electrónico para sincronizar viajes entre dispositivos
+- Deja vacío para usar solo almacenamiento local
+- **Nota**: Sin email configurado, los viajes se guardan solo localmente
+
+### 3. Escanear el Cuadro de Instrumentos
 - Toca el botón "Escanear Cuadro"
 - Permite el acceso a la cámara cuando se solicite
 - Encuadra el cuadro de instrumentos de tu vehículo dentro del marco blanco
@@ -86,7 +99,7 @@ Este proyecto fue desarrollado y probado específicamente con un **Hyundai Tucso
   - Los kilómetros totales del odómetro (opcional)
 - Toca el botón de captura (📷)
 
-### 3. Revisar y Confirmar Datos
+### 4. Revisar y Confirmar Datos
 - La app mostrará los datos extraídos automáticamente con indicadores de detección:
   - ✅ **Kilómetros de viaje**: Valor detectado del odómetro parcial
   - ✅ **Consumo**: Valor en km/L detectado automáticamente
@@ -97,16 +110,44 @@ Este proyecto fue desarrollado y probado específicamente con un **Hyundai Tucso
 - **Cálculo en tiempo real**: El costo total y L/100km se actualiza automáticamente
 - Toca "Guardar Viaje" para registrar el viaje
 
-### 4. Historial Completo
+### 5. Historial Completo
 - Consulta todos tus viajes guardados en la pantalla principal
-- Cada entrada muestra información detallada:
-  - Fecha y hora del viaje
-  - Distancia recorrida
-  - Consumo en km/L y L/100km
-  - Precio del combustible utilizado
-  - Costo total del viaje
-  - Tiempo de duración (si se detectó)
-  - Kilómetros del odómetro (si se detectó)
+- Cada tarjeta muestra información organizada:
+  - **Header**: Fecha, hora y botón eliminar
+  - **Información principal**: Distancia, consumo y costo total en tarjetas separadas
+  - **Información adicional**: Tiempo y odómetro (si están disponibles)
+  - **Precio combustible**: Información del precio utilizado
+
+## 🎨 Nueva Interfaz de Tarjetas
+
+La aplicación ahora presenta un diseño de tarjetas moderno y organizado:
+
+### Estructura de la Tarjeta:
+```
+┌─────────────────────────────────────────┐
+│ 🚗 24/08/2024 a las 12:46        🗑️    │
+│                                         │
+│ ┌─────────┐ ┌─────────┐ ┌─────────┐    │
+│ │ 📏      │ │ ⛽       │ │ 💶      │    │
+│ │Distancia│ │Consumo  │ │ Total   │    │
+│ │ 15.2 km │ │ 6.5 L/  │ │ 12.50 € │    │
+│ │         │ │ 100km   │ │         │    │
+│ │         │ │(15.4 km/│ │         │    │
+│ │         │ │  L)     │ │         │    │
+│ └─────────┘ └─────────┘ └─────────┘    │
+│                                         │
+│ ⏰ Tiempo: 25 min  🚗 Odómetro: 1250 km │
+│ 💰 Precio combustible: 1.50 €/L         │
+└─────────────────────────────────────────┘
+```
+
+### Características del nuevo diseño:
+- **Sin números de índice**: Eliminado el círculo confuso con números
+- **Información organizada**: Datos agrupados lógicamente
+- **Iconos descriptivos**: Cada tipo de dato tiene su icono representativo
+- **Colores diferenciados**: Distancia (azul), consumo (naranja), total (verde)
+- **Información destacada**: El costo total se resalta visualmente
+- **Datos opcionales**: Solo se muestran si están disponibles
 
 ## 🔧 Estructura del Proyecto
 
@@ -118,12 +159,12 @@ lib/
 ├── services/
 │   └── preferences_service.dart # Servicio de persistencia de datos
 ├── widgets/
-│   ├── trip_card.dart          # Widget de tarjeta de viaje con información completa
+│   ├── trip_card.dart          # Widget de tarjeta de viaje rediseñado
 │   └── camera_scan_section.dart # Widget de sección de escaneo
 ├── utils/
 │   └── dialog_utils.dart       # Utilidades para diálogos centralizados
 ├── screens/
-│   ├── home_screen.dart        # Pantalla principal refactorizada
+│   ├── home_screen.dart        # Pantalla principal con manejo de errores mejorado
 │   └── camera_screen.dart      # Pantalla de cámara con OCR mejorado
 └── test_extraction.dart        # Pruebas de extracción de datos
 ```
@@ -164,25 +205,46 @@ El sistema utiliza un algoritmo de reconocimiento contextual específicamente op
 - **Costo total**: `costo = litros × precio combustible`  
 - **Consumo en L/100km**: `L/100km = (litros / distancia) × 100`  
 Todos los cálculos se realizan automáticamente al guardar el viaje y se almacenan en la base de datos.
+
 ## 🌐 Integración con Base de Datos Remota
 
-La app está conectada a un backend PHP seguro que gestiona el almacenamiento, lectura y borrado de viajes en una base de datos MariaDB remota. Cada usuario tiene su propio historial gracias a un identificador UUID único que se genera y almacena localmente.
+La app está conectada a un backend PHP seguro que gestiona el almacenamiento, lectura y borrado de viajes en una base de datos MariaDB remota. Los usuarios pueden sincronizar sus datos usando su correo electrónico.
 
 ### Funcionalidades de la base de datos:
-- **Guardar viaje**: Al confirmar un viaje, los datos se envían al backend y se almacenan en la base de datos remota.
-- **Leer historial**: Al abrir la app, se consulta el backend y se muestra el historial de viajes del usuario.
-- **Borrar viaje**: Se puede eliminar cualquier viaje individualmente; la operación es segura y solo afecta al usuario correspondiente.
-- **Separación por usuario**: Todos los datos están aislados por UUID, garantizando privacidad y seguridad.
-- **Respuestas robustas**: El backend siempre responde en formato JSON, incluso ante errores, para evitar fallos en la app.
+- **Guardar viaje**: Al confirmar un viaje, los datos se envían al backend y se almacenan en la base de datos remota
+- **Leer historial**: Al abrir la app, se consulta el backend y se muestra el historial de viajes del usuario
+- **Borrar viaje**: Se puede eliminar cualquier viaje individualmente; la operación es segura y solo afecta al usuario correspondiente
+- **Separación por email**: Todos los datos están aislados por correo electrónico, garantizando privacidad y seguridad
+- **Respuestas robustas**: El backend siempre responde en formato JSON, incluso ante errores, para evitar fallos en la app
 
 ### Estructura de la tabla `viajes`:
-| id | user_uuid | distance | consumption | fuelPrice | totalCost | litersPer100Km | travelTime | totalKm | fecha |
-|----|-----------|----------|-------------|-----------|-----------|---------------|------------|---------|-------|
+| id | email | distance | consumption | fuelPrice | totalCost | litersPer100Km | travelTime | totalKm | fecha |
+|----|-------|----------|-------------|-----------|-----------|---------------|------------|---------|-------|
 
-### Seguridad y robustez
-- El backend valida todos los datos recibidos y nunca expone información sensible.
-- No existe opción de borrado masivo, solo individual y autenticado por UUID.
-- El código PHP está preparado para manejar errores de conexión y devolver mensajes claros a la app.
+### Seguridad y robustez:
+- El backend valida todos los datos recibidos y nunca expone información sensible
+- No existe opción de borrado masivo, solo individual y autenticado por email
+- El código PHP está preparado para manejar errores de conexión y devolver mensajes claros a la app
+
+## 🛡️ Manejo Avanzado de Errores
+
+La aplicación incluye un sistema robusto de manejo de errores:
+
+### Errores de Red:
+- **Timeouts**: Configurados a 30 segundos para todas las operaciones
+- **Errores de conexión**: Mensajes específicos para problemas de red
+- **Respuestas inválidas**: Manejo de respuestas HTML en lugar de JSON
+- **Errores del servidor**: Información detallada sobre códigos de estado
+
+### Validaciones:
+- **ID de viaje**: Validación antes de eliminar viajes
+- **Formato JSON**: Manejo de respuestas malformadas del servidor
+- **Contexto de widget**: Verificaciones de `mounted` para evitar errores de UI
+
+### Mensajes de Usuario:
+- **Advertencias de email**: Notificaciones sobre configuración de sincronización
+- **Errores específicos**: Mensajes claros para cada tipo de problema
+- **Confirmaciones**: Feedback positivo para operaciones exitosas
 
 ## 🐛 Solución de Problemas
 
@@ -212,6 +274,17 @@ La app está conectada a un backend PHP seguro que gestiona el almacenamiento, l
 - Utiliza la función de edición manual en el diálogo de resultados
 - Los campos se pueden corregir antes de guardar el viaje
 
+### Errores de sincronización
+- Verifica tu conexión a internet
+- Asegúrate de que el email esté configurado correctamente
+- Los viajes se guardan localmente si hay problemas de red
+- Revisa los mensajes de error específicos en la aplicación
+
+### No se pueden eliminar viajes
+- Los viajes recién creados necesitan sincronizarse primero
+- Verifica que tengas conexión a internet
+- Los viajes locales se pueden eliminar inmediatamente
+
 ## 🤝 Contribuir
 
 Las contribuciones son bienvenidas. Para contribuir:
@@ -223,6 +296,16 @@ Las contribuciones son bienvenidas. Para contribuir:
 5. Abre un Pull Request
 
 ## 🔄 Historial de Versiones
+
+### v2.1.0 - Interfaz Moderna y Manejo de Errores
+- ✅ Rediseño completo de tarjetas de viaje
+- ✅ Eliminación de círculos con números
+- ✅ Manejo avanzado de errores de red
+- ✅ Validación de IDs antes de eliminar viajes
+- ✅ Mensajes de error específicos y claros
+- ✅ Timeouts configurados para operaciones de red
+- ✅ Manejo de respuestas HTML del servidor
+- ✅ Verificaciones de contexto de widget
 
 ### v2.0.0 - Reconocimiento OCR Avanzado
 - ✅ Algoritmo OCR específico para Hyundai Tucson Híbrido 2025

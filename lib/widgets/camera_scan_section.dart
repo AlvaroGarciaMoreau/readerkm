@@ -72,7 +72,7 @@ class CameraScanSection extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    'Precio: €${fuelPrice.toStringAsFixed(2)}/L',
+                    'Precio: ${fuelPrice.toStringAsFixed(2)} Euros/L',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.green.shade700,
