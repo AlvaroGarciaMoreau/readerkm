@@ -1,9 +1,6 @@
-import '../services/preferences_service.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import '../main.dart';
 import '../models/trip_data.dart';
 
@@ -270,7 +267,7 @@ class _CameraScreenState extends State<CameraScreen> {
       'tripKm': null,
       'consumption': null,
       'travelTime': null,
-      'consumptionUnit': 'km/L', // por defecto
+      'consumptionUnit': 'L/100km', // por defecto
       'consumptionOriginal': null, // valor original detectado
     };
 
@@ -286,7 +283,7 @@ class _CameraScreenState extends State<CameraScreen> {
     ];
 
     double? consumptionValue;
-    String consumptionUnit = 'km/L';
+    String consumptionUnit = 'L/100km';
 
     // Buscar consumo en cada línea
     for (final line in lines) {
@@ -498,16 +495,16 @@ class _ResultsDialogState extends State<ResultsDialog> {
   final _consumptionController = TextEditingController();
   late final TextEditingController _fuelPriceController;
   String _manualConsumptionUnit = 'km/L';
+  bool _isSaving = false;
 
 
   @override
   void initState() {
     super.initState();
-    _initUserUuid();
     // Extraer y asignar los datos automáticamente
     final tripKm = widget.extractedData['tripKm'];
     final consumption = widget.extractedData['consumption'];
-    final consumptionUnit = widget.extractedData['consumptionUnit'] ?? 'km/L';
+    final consumptionUnit = widget.extractedData['consumptionUnit'] ?? 'L/100km';
     _tripKmController.text = tripKm != null ? tripKm.toString() : '';
     _consumptionController.text = consumption != null ? consumption.toStringAsFixed(2) : '';
     _fuelPriceController = TextEditingController(
@@ -515,7 +512,7 @@ class _ResultsDialogState extends State<ResultsDialog> {
     );
     // Si el consumo no fue reconocido, dejar elegir la unidad manualmente
     if (widget.extractedData['consumption'] == null) {
-      _manualConsumptionUnit = 'km/L';
+      _manualConsumptionUnit = 'L/100km';
     } else {
       _manualConsumptionUnit = consumptionUnit;
     }
@@ -524,8 +521,7 @@ class _ResultsDialogState extends State<ResultsDialog> {
     _fuelPriceController.addListener(_updateCalculation);
   }
 
-  Future<void> _initUserUuid() async {
-  }
+
   
   void _updateCalculation() {
     setState(() {
@@ -715,8 +711,8 @@ class _ResultsDialogState extends State<ResultsDialog> {
           child: const Text('Cancelar'),
         ),
         ElevatedButton(
-          onPressed: _saveTrip,
-          child: const Text('Guardar Viaje'),
+          onPressed: _isSaving ? null : _saveTrip,
+          child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Guardar Viaje'),
         ),
       ],
     );
@@ -856,50 +852,12 @@ class _ResultsDialogState extends State<ResultsDialog> {
     );
   }
 
-  Future<void> enviarViajeABaseDeDatos(TripData tripData) async {
-    final url = Uri.parse('https://www.moreausoft.com/ReaderKM/guardar_viaje.php');
-    try {
-      final email = await PreferencesService.loadEmail();
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'distance': tripData.distance,
-          'consumption': tripData.consumption,
-          'fuelPrice': tripData.fuelPrice,
-          'totalCost': tripData.totalCost,
-          'litersPer100Km': tripData.litersPer100Km,
-          'travelTime': tripData.travelTime,
-          'totalKm': tripData.totalKm,
-          'email': email,
-        }),
-      );
-      debugPrint('Respuesta backend: \n${response.body}');
-      if (response.statusCode == 200) {
-        final jsonResp = jsonDecode(response.body);
-        if (jsonResp['success'] == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('¡Viaje guardado en la base de datos remota!')),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al guardar viaje: ${response.body}')),
-          );
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al guardar viaje: ${response.body}')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error de red al guardar viaje: $e')),
-      );
-    }
-  }
+
 
   void _saveTrip() async {
+    if (_isSaving) return;
     if (_formKey.currentState!.validate()) {
+      setState(() => _isSaving = true);
       final tripKm = double.parse(_tripKmController.text);
       final consumption = double.parse(_consumptionController.text);
       final fuelPrice = double.parse(_fuelPriceController.text);
@@ -932,7 +890,7 @@ class _ResultsDialogState extends State<ResultsDialog> {
         date: DateTime.now(),
       );
 
-      await enviarViajeABaseDeDatos(tripData);
+      if (mounted) setState(() => _isSaving = false);
       widget.onSave(tripData);
     }
   }

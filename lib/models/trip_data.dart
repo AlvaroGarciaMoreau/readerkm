@@ -60,7 +60,7 @@ class TripData {
       id: json['id'] != null ? int.tryParse(json['id'].toString()) : null,
       distance: json['distance'].toDouble(),
       consumption: json['consumption'].toDouble(),
-      consumptionUnit: json['consumptionUnit'] ?? 'km/L',
+      consumptionUnit: json['consumptionUnit'] ?? 'L/100km',
       fuelPrice: json['fuelPrice'].toDouble(),
       totalCost: json['totalCost'].toDouble(),
       litersPer100Km: json['litersPer100Km']?.toDouble() ?? 0.0,

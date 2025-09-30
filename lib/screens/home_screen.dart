@@ -22,8 +22,17 @@ class _HomeScreenState extends State<HomeScreen> {
   bool localMode = false;
   List<TripData> trips = [];
   bool _showEmailWarning = true;
+  bool _isSavingTrip = false; // Prevenir guardados múltiples
 
   bool get isEmailMode => _email != null && _email!.isNotEmpty;
+
+  bool _isDuplicateTrip(TripData newTrip) {
+    return trips.any((t) =>
+        t.distance == newTrip.distance &&
+        t.consumption == newTrip.consumption &&
+        t.totalCost == newTrip.totalCost &&
+        t.date.difference(newTrip.date).inMinutes.abs() < 5); // within 5 minutes
+  }
 
   @override
   void initState() {
@@ -320,29 +329,31 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Configuración de Email'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Ingresa tu correo electrónico para sincronizar tus viajes entre dispositivos:',
-              style: TextStyle(fontSize: 14),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                hintText: 'tu@email.com',
-                labelText: 'Email',
-                border: OutlineInputBorder(),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Ingresa tu correo electrónico para sincronizar tus viajes entre dispositivos:',
+                style: TextStyle(fontSize: 14),
               ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Deja vacío para usar solo almacenamiento local',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  hintText: 'tu@email.com',
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Deja vacío para usar solo almacenamiento local',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -374,6 +385,110 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _showCalculatorDialog() {
+    final distanceController = TextEditingController();
+    final consumptionController = TextEditingController();
+    final fuelPriceController = TextEditingController(text: _fuelPrice.toString());
+    String unit = 'L/100km';
+    Map<String, dynamic>? result;
+    bool isReplacingConsumption = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Calculadora de Viaje'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: distanceController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Distancia (km)'),
+                ),
+                TextField(
+                  controller: consumptionController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Consumo'),
+                  onChanged: (value) {
+                    if (isReplacingConsumption) return;
+                    if (value.contains(',')) {
+                      isReplacingConsumption = true;
+                      String newValue = value.replaceAll(',', '.');
+                      consumptionController.value = consumptionController.value.copyWith(
+                        text: newValue,
+                        selection: TextSelection.collapsed(offset: newValue.length),
+                      );
+                      isReplacingConsumption = false;
+                    }
+                  },
+                ),
+                DropdownButton<String>(
+                  value: unit,
+                  items: ['km/L', 'L/100km'].map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                  onChanged: (newValue) {
+                    setState(() {
+                      unit = newValue!;
+                    });
+                  },
+                ),
+                TextField(
+                  controller: fuelPriceController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Precio gasolina (€/L)'),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    double distance = double.tryParse(distanceController.text) ?? 0;
+                    double consumption = double.tryParse(consumptionController.text) ?? 0;
+                    double fuelPrice = double.tryParse(fuelPriceController.text) ?? _fuelPrice;
+
+                    double litersPer100Km;
+                    if (unit == 'km/L') {
+                      litersPer100Km = 100 / consumption;
+                    } else {
+                      litersPer100Km = consumption;
+                    }
+                    double litersUsed = (distance / 100) * litersPer100Km;
+                    double totalCost = litersUsed * fuelPrice;
+
+                    setState(() {
+                      result = {
+                        'litersPer100Km': litersPer100Km,
+                        'litersUsed': litersUsed,
+                        'totalCost': totalCost,
+                      };
+                    });
+                  },
+                  child: const Text('Calcular'),
+                ),
+                if (result != null) ...[
+                  const SizedBox(height: 16),
+                  Text('Litros por 100km: ${result!['litersPer100Km'].toStringAsFixed(2)}'),
+                  Text('Litros usados: ${result!['litersUsed'].toStringAsFixed(2)}'),
+                  Text('Costo total: ${result!['totalCost'].toStringAsFixed(2)} €'),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _startCamera() async {
     final cameraPermission = await Permission.camera.request();
     if (cameraPermission.isGranted) {
@@ -385,9 +500,25 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       if (result != null && result is TripData) {
+        if (_isSavingTrip) {
+          debugPrint('Ya se está guardando un viaje, ignorando duplicado');
+          return;
+        }
+        
+        if (_isDuplicateTrip(result)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Este viaje ya ha sido registrado')),
+            );
+          }
+          return;
+        }
+        
         setState(() {
+          _isSavingTrip = true;
           trips.insert(0, result);
         });
+        
         if (isEmailMode) {
           // Save to backend
           try {
@@ -473,10 +604,31 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               );
             }
+          } finally {
+            // Restaurar el estado de guardado
+            if (mounted) {
+              setState(() {
+                _isSavingTrip = false;
+              });
+            }
           }
         } else {
           // Save locally
-          await _saveTripsLocal();
+          try {
+            await _saveTripsLocal();
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Viaje guardado localmente')),
+              );
+            }
+          } finally {
+            // Restaurar el estado de guardado
+            if (mounted) {
+              setState(() {
+                _isSavingTrip = false;
+              });
+            }
+          }
         }
       }
     } else {
@@ -503,6 +655,11 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.local_gas_station),
             onPressed: _showFuelPriceDialog,
             tooltip: 'Configurar precio de gasolina',
+          ),
+          IconButton(
+            icon: const Icon(Icons.calculate),
+            onPressed: _showCalculatorDialog,
+            tooltip: 'Calculadora de viaje',
           ),
         ],
       ),
