@@ -59,7 +59,6 @@ class ImageUploadService {
         client.close();
       }
     } catch (e) {
-      print('Error subiendo imagen: $e');
       return null;
     }
   }
@@ -86,7 +85,6 @@ class ImageUploadService {
       }
       return false;
     } catch (e) {
-      print('Error eliminando imagen: $e');
       return false;
     }
   }

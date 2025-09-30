@@ -2,19 +2,18 @@
 
 ## 🔧 **1. Estructura de directorios en tu servidor**
 
-Crea esta estructura en tu hosting:
+Para hostings compartidos que NO permiten crear directorios fuera de public_html:
 
 ```
-/home/usuario/  (o el directorio raíz de tu cuenta)
-├── public_html/
-│   └── ReaderKM/
-│       └── fotos/
-│           ├── upload_image.php
-│           ├── secure_image.php
-│           ├── delete_image.php
-│           └── .htaccess
-└── fotos_privadas/      ← IMPORTANTE: Fuera de public_html
-    └── trip_images/     (se crea automáticamente)
+public_html/
+└── ReaderKM/
+    └── fotos/
+        ├── upload_image.php
+        ├── secure_image.php
+        ├── delete_image.php
+        ├── .htaccess
+        └── trip_images/         ← Directorio protegido DENTRO de public_html
+            └── .htaccess        ← Protección adicional
 ```
 
 ## 🚀 **2. Subir archivos PHP**
@@ -25,11 +24,14 @@ Crea esta estructura en tu hosting:
 - `delete_image.php`
 - `.htaccess`
 
-### **B) Crear directorio privado:**
+### **B) Crear directorio protegido:**
+1. **Crear directorio:** `public_html/ReaderKM/fotos/trip_images/`
+2. **Subir archivo de protección:** Copia `trip_images_htaccess` como `trip_images/.htaccess`
+
 ```bash
-# Conéctate por SSH o usa el administrador de archivos
-mkdir -p /home/usuario/fotos_privadas/trip_images
-chmod 700 /home/usuario/fotos_privadas/trip_images
+# Via administrador de archivos o FTP:
+# 1. Crear directorio: public_html/ReaderKM/fotos/trip_images/
+# 2. Subir trip_images_htaccess como: public_html/ReaderKM/fotos/trip_images/.htaccess
 ```
 
 ## ⚙️ **3. Configuración de permisos**
@@ -44,8 +46,8 @@ chmod 644 .htaccess
 
 ### **Directorio de imágenes:**
 ```bash
-chmod 700 /home/usuario/fotos_privadas
-chmod 700 /home/usuario/fotos_privadas/trip_images
+chmod 755 public_html/ReaderKM/fotos/trip_images/
+chmod 644 public_html/ReaderKM/fotos/trip_images/.htaccess
 ```
 
 ## 🔐 **4. Configuración de seguridad**
@@ -65,8 +67,8 @@ chmod 700 /home/usuario/fotos_privadas/trip_images
 
 2. **Test de acceso directo (debe fallar):**
    ```bash
-   curl https://www.moreausoft.com/ReaderKM/fotos/../fotos_privadas/trip_images/
-   # Debe devolver error 403 o 404
+   curl https://www.moreausoft.com/ReaderKM/fotos/trip_images/
+   # Debe devolver error 403 "Acceso denegado"
    ```
 
 ## 📱 **5. Configuración en la app Flutter**
@@ -109,7 +111,7 @@ tail -f /var/log/error.log | grep "ReaderKM"
 ## 🚨 **8. Solución de problemas**
 
 ### **Error: "No se pudo subir imagen"**
-1. Verificar permisos del directorio `fotos_privadas`
+1. Verificar permisos del directorio `trip_images` (debe ser 755)
 2. Comprobar que PHP tiene permisos de escritura
 3. Verificar límites de PHP (upload_max_filesize, post_max_size)
 
@@ -135,8 +137,8 @@ Para probar que todo funciona correctamente:
 
 Para ver cuántas imágenes se han subido:
 ```bash
-ls -la /home/usuario/fotos_privadas/trip_images/ | wc -l
-du -sh /home/usuario/fotos_privadas/trip_images/
+ls -la public_html/ReaderKM/fotos/trip_images/ | wc -l
+du -sh public_html/ReaderKM/fotos/trip_images/
 ```
 
 ---
@@ -144,8 +146,9 @@ du -sh /home/usuario/fotos_privadas/trip_images/
 ## ⚡ **RESUMEN RÁPIDO:**
 
 1. Subir 4 archivos PHP a `public_html/ReaderKM/fotos/`
-2. Crear directorio `fotos_privadas` fuera de public_html
-3. Configurar permisos (700 para directorios privados)
-4. Probar con la app
+2. Crear directorio `trip_images` dentro de `fotos/`
+3. Subir archivo de protección como `trip_images/.htaccess`
+4. Configurar permisos (755 para directorio, 644 para archivos)
+5. Probar con la app
 
 **¡Listo! Las fotos se guardarán de forma segura en tu hosting.** 🎉

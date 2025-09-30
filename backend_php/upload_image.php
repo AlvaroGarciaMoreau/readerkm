@@ -17,8 +17,8 @@ if (!isset($_FILES['image'])) {
     exit;
 }
 
-// Directorio de subida protegido (fuera del DocumentRoot público)
-$uploadDir = '../fotos_privadas/trip_images/';
+// Directorio de subida protegido (dentro de public_html pero bloqueado por .htaccess)
+$uploadDir = './trip_images/';
 
 // Crear directorio si no existe
 if (!file_exists($uploadDir)) {

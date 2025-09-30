@@ -15,8 +15,8 @@ if (!validateImageToken($token, $filename)) {
     die('Token inválido o expirado');
 }
 
-// Directorio de imágenes privadas
-$uploadDir = '../fotos_privadas/trip_images/';
+// Directorio de imágenes protegidas
+$uploadDir = './trip_images/';
 $safePath = realpath($uploadDir . basename($filename));
 $uploadDirReal = realpath($uploadDir);
 

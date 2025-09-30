@@ -21,8 +21,8 @@ if (!isset($input['filename']) || !isset($input['email'])) {
 $filename = $input['filename'];
 $email = $input['email'];
 
-// Directorio de imágenes privadas
-$uploadDir = '../fotos_privadas/trip_images/';
+// Directorio de imágenes protegidas
+$uploadDir = './trip_images/';
 $filePath = $uploadDir . basename($filename);
 
 // Verificar que el archivo existe

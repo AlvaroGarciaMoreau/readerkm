@@ -1,0 +1,28 @@
+# Protección específica para el directorio trip_images
+# Este archivo va dentro de trip_images/
+
+# Denegar TODO acceso directo a imágenes
+Order Deny,Allow
+Deny from all
+
+# No permitir override de estas reglas
+AllowOverride None
+
+# Prevenir acceso a cualquier archivo
+<FilesMatch ".*">
+    Order Deny,Allow
+    Deny from all
+</FilesMatch>
+
+# Mensaje de error personalizado
+ErrorDocument 403 "Acceso denegado. Las imágenes son privadas y solo accesibles mediante la aplicación."
+
+# Prevenir listado de directorios
+Options -Indexes
+
+# Headers de seguridad adicionales
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options nosniff
+    Header always set X-Frame-Options DENY
+    Header always set X-XSS-Protection "1; mode=block"
+</IfModule>
