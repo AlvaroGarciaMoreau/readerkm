@@ -893,7 +893,11 @@ class _ResultsDialogState extends State<ResultsDialog> {
       // Intentar subir imagen si hay path y email configurado
       if (widget.imagePath != null) {
         try {
+          print('DEBUG: Iniciando subida de imagen desde: ${widget.imagePath}');
+          
           final email = await PreferencesService.loadEmail();
+          print('DEBUG: Email obtenido: $email');
+          
           if (email != null && email.isNotEmpty) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -905,14 +909,18 @@ class _ResultsDialogState extends State<ResultsDialog> {
               );
             }
             
+            print('DEBUG: Llamando a ImageUploadService.uploadTripImage');
             final uploadResult = await ImageUploadService.uploadTripImage(
               imagePath: widget.imagePath!,
               email: email,
             );
+            print('DEBUG: Resultado de subida: $uploadResult');
             
             if (uploadResult != null && uploadResult['success'] == true) {
               imageUrl = uploadResult['url'];
               imageFilename = uploadResult['filename'];
+              
+              print('DEBUG: Imagen subida exitosamente - URL: $imageUrl, Filename: $imageFilename');
               
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -924,6 +932,7 @@ class _ResultsDialogState extends State<ResultsDialog> {
                 );
               }
             } else {
+              print('DEBUG: Fallo en subida de imagen - Result: $uploadResult');
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -934,8 +943,11 @@ class _ResultsDialogState extends State<ResultsDialog> {
                 );
               }
             }
+          } else {
+            print('DEBUG: No hay email configurado, saltando subida de imagen');
           }
         } catch (e) {
+          print('DEBUG: Excepción durante subida de imagen: $e');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -946,6 +958,8 @@ class _ResultsDialogState extends State<ResultsDialog> {
             );
           }
         }
+      } else {
+        print('DEBUG: No hay imagen para subir - widget.imagePath es null');
       }
 
       final tripData = TripData(

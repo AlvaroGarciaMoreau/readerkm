@@ -12,16 +12,24 @@ class ImageUploadService {
     required String email,
   }) async {
     try {
+      print('ImageUploadService: Iniciando subida - imagePath: $imagePath, email: $email');
+      
       final file = File(imagePath);
       if (!await file.exists()) {
+        print('ImageUploadService: ERROR - Archivo no existe: $imagePath');
         throw Exception('Archivo de imagen no encontrado');
       }
 
+      print('ImageUploadService: Archivo existe, tamaño: ${await file.length()} bytes');
+
       final uri = Uri.parse('$baseUrl/upload_image.php');
+      print('ImageUploadService: URL destino: $uri');
+      
       final request = http.MultipartRequest('POST', uri);
       
       // Añadir email
       request.fields['email'] = email;
+      print('ImageUploadService: Email agregado: $email');
       
       // Añadir archivo
       final multipartFile = await http.MultipartFile.fromPath(
@@ -30,28 +38,35 @@ class ImageUploadService {
       );
       
       request.files.add(multipartFile);
+      print('ImageUploadService: Archivo agregado al request - tamaño: ${multipartFile.length} bytes');
       
       // Configurar timeout
       final client = http.Client();
       
       try {
+        print('ImageUploadService: Enviando request...');
         // Enviar request con timeout de 30 segundos
         final response = await client.send(request).timeout(
           const Duration(seconds: 30),
         );
         
         final responseBody = await response.stream.bytesToString();
+        print('ImageUploadService: Response status: ${response.statusCode}');
+        print('ImageUploadService: Response body: $responseBody');
         
         if (response.statusCode == 200) {
           final data = jsonDecode(responseBody);
+          print('ImageUploadService: Datos decodificados: $data');
           
           // Guardar token de acceso localmente
           if (data['access_token'] != null && data['filename'] != null) {
             await _saveImageToken(data['filename'], data['access_token']);
+            print('ImageUploadService: Token guardado localmente');
           }
           
           return data;
         } else {
+          print('ImageUploadService: ERROR - Status code no es 200');
           final error = jsonDecode(responseBody);
           throw Exception(error['error'] ?? 'Error al subir imagen');
         }
@@ -59,6 +74,7 @@ class ImageUploadService {
         client.close();
       }
     } catch (e) {
+      print('ImageUploadService: EXCEPCIÓN - $e');
       return null;
     }
   }

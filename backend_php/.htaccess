@@ -1,8 +1,16 @@
-# Denegar acceso directo a todas las imágenes
-Order Deny,Allow
-Deny from all
+# Permitir acceso a archivos PHP
+<Files ~ "\.php$">
+    Order Allow,Deny
+    Allow from all
+</Files>
 
-# Mensaje personalizado para acceso denegado
+# Denegar acceso directo a imágenes (solo en subdirectorio trip_images)
+<Files ~ "\.(jpg|jpeg|png|gif|webp|bmp)$">
+    Order Deny,Allow
+    Deny from all
+</Files>
+
+# Mensaje personalizado para acceso denegado a imágenes
 ErrorDocument 403 "Acceso denegado. Las imágenes son privadas."
 
 # Denegar acceso a archivos de sistema
