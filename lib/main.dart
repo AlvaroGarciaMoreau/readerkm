@@ -3,36 +3,36 @@ import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
 import 'screens/home_screen.dart';
 
-late List<CameraDescription> cameras;
+List<CameraDescription> cameras = [];
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Fijar orientación en modo vertical
+  // Configurar orientación preferida
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
   
-  // Inicializar las cámaras
+  // Inicializar cámaras
   try {
     cameras = await availableCameras();
   } catch (e) {
-    cameras = [];
+    debugPrint('Error inicializando cámaras: $e');
   }
   
-  runApp(const ReaderKMApp());
+  runApp(const MyApp());
 }
 
-class ReaderKMApp extends StatelessWidget {
-  const ReaderKMApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'ReaderKM',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
       home: const HomeScreen(),
