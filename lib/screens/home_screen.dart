@@ -504,6 +504,11 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: _showFuelPriceDialog,
             tooltip: 'Configurar precio de gasolina',
           ),
+          IconButton(
+            icon: const Icon(Icons.calculate),
+            onPressed: _showCalculatorDialog,
+            tooltip: 'Calculadora de viaje',
+          ),
         ],
       ),
       body: Padding(
@@ -568,6 +573,110 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCalculatorDialog() {
+    final distanceController = TextEditingController();
+    final consumptionController = TextEditingController();
+    final fuelPriceController = TextEditingController(text: _fuelPrice.toString());
+    String unit = 'L/100km';
+    Map<String, dynamic>? result;
+    bool isReplacingConsumption = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Calculadora de Viaje'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: distanceController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Distancia (km)'),
+                ),
+                TextField(
+                  controller: consumptionController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Consumo'),
+                  onChanged: (value) {
+                    if (isReplacingConsumption) return;
+                    if (value.contains(',')) {
+                      isReplacingConsumption = true;
+                      String newValue = value.replaceAll(',', '.');
+                      consumptionController.value = consumptionController.value.copyWith(
+                        text: newValue,
+                        selection: TextSelection.collapsed(offset: newValue.length),
+                      );
+                      isReplacingConsumption = false;
+                    }
+                  },
+                ),
+                DropdownButton<String>(
+                  value: unit,
+                  items: ['km/L', 'L/100km'].map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                  onChanged: (newValue) {
+                    setState(() {
+                      unit = newValue!;
+                    });
+                  },
+                ),
+                TextField(
+                  controller: fuelPriceController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Precio gasolina (€/L)'),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    double distance = double.tryParse(distanceController.text) ?? 0;
+                    double consumption = double.tryParse(consumptionController.text) ?? 0;
+                    double fuelPrice = double.tryParse(fuelPriceController.text) ?? _fuelPrice;
+
+                    double litersPer100Km;
+                    if (unit == 'km/L') {
+                      litersPer100Km = 100 / consumption;
+                    } else {
+                      litersPer100Km = consumption;
+                    }
+                    double litersUsed = (distance / 100) * litersPer100Km;
+                    double totalCost = litersUsed * fuelPrice;
+
+                    setState(() {
+                      result = {
+                        'litersPer100Km': litersPer100Km,
+                        'litersUsed': litersUsed,
+                        'totalCost': totalCost,
+                      };
+                    });
+                  },
+                  child: const Text('Calcular'),
+                ),
+                if (result != null) ...[
+                  const SizedBox(height: 16),
+                  Text('Litros por 100km: ${result!['litersPer100Km'].toStringAsFixed(2)}'),
+                  Text('Litros usados: ${result!['litersUsed'].toStringAsFixed(2)}'),
+                  Text('Costo total: ${result!['totalCost'].toStringAsFixed(2)} €'),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cerrar'),
             ),
           ],
         ),
