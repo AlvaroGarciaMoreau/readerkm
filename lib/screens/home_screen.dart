@@ -303,7 +303,7 @@ class _HomeScreenState extends State<HomeScreen> {
               if (price != null) {
                 await _saveFuelPrice(price);
               }
-              if (mounted) {
+              if (context.mounted) {
                 Navigator.pop(context);
               }
             },
@@ -356,7 +356,7 @@ class _HomeScreenState extends State<HomeScreen> {
               final email = controller.text.trim();
               await PreferencesService.saveEmail(email);
               _email = email.isNotEmpty ? email : null;
-              if (mounted) {
+              if (context.mounted) {
                 Navigator.pop(context);
                 // Ocultar la advertencia si se configuró un email
                 if (email.isNotEmpty) {

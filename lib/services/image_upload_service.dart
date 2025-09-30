@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' as http_parser;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,71 +13,112 @@ class ImageUploadService {
     required String imagePath,
     required String email,
   }) async {
+    http.Client? client;
+    
     try {
-      print('ImageUploadService: Iniciando subida - imagePath: $imagePath, email: $email');
       
       final file = File(imagePath);
       if (!await file.exists()) {
-        print('ImageUploadService: ERROR - Archivo no existe: $imagePath');
-        throw Exception('Archivo de imagen no encontrado');
+        return null;
       }
 
-      print('ImageUploadService: Archivo existe, tamaño: ${await file.length()} bytes');
+      final fileSize = await file.length();
+      
+      // Verificar que el archivo no esté vacío
+      if (fileSize == 0) {
+        return null;
+      }
+      
+      // Verificar que el archivo no sea demasiado grande (10MB)
+      if (fileSize > 10 * 1024 * 1024) {
+        return null;
+      }
 
       final uri = Uri.parse('$baseUrl/upload_image.php');
-      print('ImageUploadService: URL destino: $uri');
       
+      client = http.Client();
       final request = http.MultipartRequest('POST', uri);
+      
+      // Configurar headers
+      request.headers.addAll({
+        'Accept': 'application/json',
+        'User-Agent': 'ReaderKM/1.0',
+      });
       
       // Añadir email
       request.fields['email'] = email;
-      print('ImageUploadService: Email agregado: $email');
       
-      // Añadir archivo
+      // Añadir archivo con tipo MIME correcto
+      String? mimeType;
+      final extension = imagePath.toLowerCase().split('.').last;
+      switch (extension) {
+        case 'jpg':
+        case 'jpeg':
+          mimeType = 'image/jpeg';
+          break;
+        case 'png':
+          mimeType = 'image/png';
+          break;
+        default:
+          mimeType = 'image/jpeg'; // Fallback
+      }
+      
       final multipartFile = await http.MultipartFile.fromPath(
         'image',
         imagePath,
+        contentType: http_parser.MediaType.parse(mimeType),
       );
       
       request.files.add(multipartFile);
-      print('ImageUploadService: Archivo agregado al request - tamaño: ${multipartFile.length} bytes');
       
-      // Configurar timeout
-      final client = http.Client();
       
-      try {
-        print('ImageUploadService: Enviando request...');
-        // Enviar request con timeout de 30 segundos
-        final response = await client.send(request).timeout(
-          const Duration(seconds: 30),
-        );
-        
-        final responseBody = await response.stream.bytesToString();
-        print('ImageUploadService: Response status: ${response.statusCode}');
-        print('ImageUploadService: Response body: $responseBody');
-        
-        if (response.statusCode == 200) {
-          final data = jsonDecode(responseBody);
-          print('ImageUploadService: Datos decodificados: $data');
+      // Enviar request con timeout
+      final streamedResponse = await client.send(request).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Timeout al subir imagen');
+        },
+      );
+      
+      final responseBody = await streamedResponse.stream.bytesToString();
+      
+      if (streamedResponse.statusCode == 200) {
+        try {
+          final data = jsonDecode(responseBody) as Map<String, dynamic>;
           
-          // Guardar token de acceso localmente
-          if (data['access_token'] != null && data['filename'] != null) {
-            await _saveImageToken(data['filename'], data['access_token']);
-            print('ImageUploadService: Token guardado localmente');
+          // Verificar que la respuesta tenga los campos esperados
+          if (data['success'] == true) {
+            // Guardar token de acceso localmente si existe
+            if (data['token'] != null && data['filename'] != null) {
+              await _saveImageToken(data['filename'], data['token']);
+            }
+            
+            return data;
+          } else {
+            return null;
           }
-          
-          return data;
-        } else {
-          print('ImageUploadService: ERROR - Status code no es 200');
-          final error = jsonDecode(responseBody);
-          throw Exception(error['error'] ?? 'Error al subir imagen');
+        } catch (e) {
+          return null;
         }
-      } finally {
-        client.close();
+      } else {
+        try {
+          final error = jsonDecode(responseBody);
+          final errorMsg = error['error'] ?? 'Error desconocido del servidor';
+          throw Exception(errorMsg);
+        } catch (e) {
+          throw Exception('Error del servidor (${streamedResponse.statusCode})');
+        }
       }
-    } catch (e) {
-      print('ImageUploadService: EXCEPCIÓN - $e');
+    } on SocketException {
       return null;
+    } on FormatException {
+      return null;
+    } on TimeoutException {
+      return null;
+    } catch (_) {
+      return null;
+    } finally {
+      client?.close();
     }
   }
   
@@ -107,10 +150,15 @@ class ImageUploadService {
   
   /// Obtiene la URL segura para acceder a una imagen
   static Future<String?> getSecureImageUrl(String filename) async {
-    final token = await _getImageToken(filename);
-    if (token == null) return null;
+    if (filename.isEmpty) return null;
     
-    return '$baseUrl/secure_image.php?token=$token&file=$filename';
+    final token = await _getImageToken(filename);
+    if (token == null) {
+      return null;
+    }
+    
+    final url = '$baseUrl/secure_image.php?token=$token&file=${Uri.encodeComponent(filename)}';
+    return url;
   }
   
   /// Verifica si una imagen existe en el servidor
@@ -144,41 +192,42 @@ class ImageUploadService {
   
   // Métodos privados para manejo de tokens
   static Future<void> _saveImageToken(String filename, String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('img_token_$filename', token);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('img_token_$filename', token);
+    } catch (e) {
+      // Ignore errors when saving token
+    }
   }
   
   static Future<String?> _getImageToken(String filename) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('img_token_$filename');
-    
-    // Verificar si el token no ha expirado
-    if (token != null && _isTokenExpired(token)) {
-      await prefs.remove('img_token_$filename');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('img_token_$filename');
+      
+      if (token != null) {
+        return token;
+      } else {
+        return null;
+      }
+    } catch (e) {
       return null;
     }
-    
-    return token;
   }
   
   static Future<void> _removeImageToken(String filename) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('img_token_$filename');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('img_token_$filename');
+    } catch (e) {
+      // Ignore errors when removing token
+    }
   }
   
   static bool _isTokenExpired(String token) {
-    try {
-      final tokenData = base64Decode(token);
-      final parts = String.fromCharCodes(tokenData).split('|');
-      
-      if (parts.length < 3) return true;
-      
-      final expiration = int.tryParse(parts[2]);
-      if (expiration == null) return true;
-      
-      return DateTime.now().millisecondsSinceEpoch ~/ 1000 > expiration;
-    } catch (e) {
-      return true;
-    }
+    // Por ahora, no verificamos expiración ya que los tokens del PHP 
+    // son simples strings hexadecimales sin información de tiempo
+    // El servidor manejará la expiración
+    return false;
   }
 }

@@ -117,14 +117,39 @@ class TripCard extends StatelessWidget {
                       child: FutureBuilder<String?>(
                         future: ImageUploadService.getSecureImageUrl(trip.imageFilename ?? ''),
                         builder: (context, snapshot) {
+                          
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return Container(
+                              color: Colors.grey.shade100,
+                              child: const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  CircularProgressIndicator(strokeWidth: 2),
+                                  SizedBox(height: 4),
+                                  Text('Cargando...', 
+                                       style: TextStyle(fontSize: 10, color: Colors.grey)),
+                                ],
+                              ),
+                            );
+                          }
+                          
                           if (snapshot.hasData && snapshot.data != null) {
                             return Image.network(
                               snapshot.data!,
                               fit: BoxFit.cover,
                               loadingBuilder: (context, child, loadingProgress) {
                                 if (loadingProgress == null) return child;
-                                return const Center(
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                return Container(
+                                  color: Colors.grey.shade100,
+                                  child: const Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                      SizedBox(height: 4),
+                                      Text('Descargando...', 
+                                           style: TextStyle(fontSize: 10, color: Colors.grey)),
+                                    ],
+                                  ),
                                 );
                               },
                               errorBuilder: (context, error, stackTrace) {
@@ -148,7 +173,7 @@ class TripCard extends StatelessWidget {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(Icons.photo, color: Colors.grey),
-                                  Text('📸 Imagen del viaje', 
+                                  Text('📸 Sin imagen', 
                                        style: TextStyle(fontSize: 10, color: Colors.grey)),
                                 ],
                               ),

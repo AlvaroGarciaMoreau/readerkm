@@ -863,7 +863,11 @@ class _ResultsDialogState extends State<ResultsDialog> {
 
   void _saveTrip() async {
     if (_isSaving) return;
-    if (_formKey.currentState!.validate()) {
+    
+    try {
+      if (!_formKey.currentState!.validate()) return;
+      
+      if (!mounted) return;
       setState(() => _isSaving = true);
       
       final tripKm = double.parse(_tripKmController.text);
@@ -891,76 +895,98 @@ class _ResultsDialogState extends State<ResultsDialog> {
       String? imageFilename;
 
       // Intentar subir imagen si hay path y email configurado
-      if (widget.imagePath != null) {
+      if (widget.imagePath != null && mounted) {
         try {
-          print('DEBUG: Iniciando subida de imagen desde: ${widget.imagePath}');
           
           final email = await PreferencesService.loadEmail();
-          print('DEBUG: Email obtenido: $email');
           
-          if (email != null && email.isNotEmpty) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('📸 Subiendo imagen...'),
-                  backgroundColor: Colors.blue,
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            }
-            
-            print('DEBUG: Llamando a ImageUploadService.uploadTripImage');
-            final uploadResult = await ImageUploadService.uploadTripImage(
-              imagePath: widget.imagePath!,
-              email: email,
-            );
-            print('DEBUG: Resultado de subida: $uploadResult');
-            
-            if (uploadResult != null && uploadResult['success'] == true) {
-              imageUrl = uploadResult['url'];
-              imageFilename = uploadResult['filename'];
-              
-              print('DEBUG: Imagen subida exitosamente - URL: $imageUrl, Filename: $imageFilename');
-              
+          if (email != null && email.isNotEmpty && mounted) {
+            // Mostrar indicador de carga de forma segura
+            try {
               if (mounted) {
+                ScaffoldMessenger.of(context).clearSnackBars();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('✅ Imagen guardada en la nube'),
-                    backgroundColor: Colors.green,
+                    content: Text('📸 Subiendo imagen...'),
+                    backgroundColor: Colors.blue,
                     duration: Duration(seconds: 2),
                   ),
                 );
               }
+            } catch (e) {
+              // Ignore errors when showing snackbar
+            }
+            
+            
+            // Agregar timeout para evitar colgarse
+            final uploadResult = await ImageUploadService.uploadTripImage(
+              imagePath: widget.imagePath!,
+              email: email,
+            ).timeout(
+              const Duration(seconds: 30),
+              onTimeout: () {
+                return null;
+              },
+            );
+            
+            
+            if (mounted && uploadResult != null && uploadResult['success'] == true) {
+              imageUrl = uploadResult['url'];
+              imageFilename = uploadResult['filename'];
+              
+              
+              try {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).clearSnackBars();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ Imagen guardada en la nube'),
+                      backgroundColor: Colors.green,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              } catch (e) {
+                // Ignore errors when showing snackbar
+              }
             } else {
-              print('DEBUG: Fallo en subida de imagen - Result: $uploadResult');
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('⚠️ Viaje guardado, pero imagen no se pudo subir'),
-                    backgroundColor: Colors.orange,
-                    duration: Duration(seconds: 3),
-                  ),
-                );
+              try {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).clearSnackBars();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('⚠️ Viaje guardado, pero imagen no se pudo subir'),
+                      backgroundColor: Colors.orange,
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+                }
+              } catch (e) {
+                // Ignore errors when showing snackbar
               }
             }
           } else {
-            print('DEBUG: No hay email configurado, saltando subida de imagen');
           }
         } catch (e) {
-          print('DEBUG: Excepción durante subida de imagen: $e');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('⚠️ Error subiendo imagen: $e'),
-                backgroundColor: Colors.orange,
-                duration: const Duration(seconds: 3),
-              ),
-            );
+          try {
+            if (mounted) {
+              ScaffoldMessenger.of(context).clearSnackBars();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('⚠️ Error subiendo imagen: ${e.toString()}'),
+                  backgroundColor: Colors.orange,
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            }
+          } catch (e2) {
+            // Ignore errors when showing snackbar
           }
         }
       } else {
-        print('DEBUG: No hay imagen para subir - widget.imagePath es null');
       }
+
+      if (!mounted) return;
 
       final tripData = TripData(
         distance: tripKm,
@@ -972,12 +998,30 @@ class _ResultsDialogState extends State<ResultsDialog> {
         travelTime: travelTime,
         totalKm: totalKm,
         date: DateTime.now(),
-        imageUrl: imageUrl,         // ← NUEVO
-        imageFilename: imageFilename, // ← NUEVO
+        imageUrl: imageUrl,
+        imageFilename: imageFilename,
       );
 
-      if (mounted) setState(() => _isSaving = false);
-      widget.onSave(tripData);
+      if (mounted) {
+        setState(() => _isSaving = false);
+        widget.onSave(tripData);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        try {
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('❌ Error guardando viaje: ${e.toString()}'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        } catch (e2) {
+          // Ignore errors when showing snackbar
+        }
+      }
     }
   }
 
