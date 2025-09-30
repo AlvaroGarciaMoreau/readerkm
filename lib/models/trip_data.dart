@@ -10,6 +10,8 @@ class TripData {
   final String? travelTime;
   final double? totalKm;
   final DateTime date;
+  final String? imageUrl;        // ← NUEVO
+  final String? imageFilename;   // ← NUEVO
 
   TripData({
     this.id,
@@ -22,6 +24,8 @@ class TripData {
     this.travelTime,
     this.totalKm,
     required this.date,
+    this.imageUrl,        // ← NUEVO
+    this.imageFilename,   // ← NUEVO
   });
 
   Map<String, dynamic> toJson() {
@@ -36,6 +40,8 @@ class TripData {
       'travelTime': travelTime,
       'totalKm': totalKm,
       'date': date.millisecondsSinceEpoch,
+      'imageUrl': imageUrl,         // ← NUEVO
+      'imageFilename': imageFilename, // ← NUEVO
     };
   }
 
@@ -67,6 +73,38 @@ class TripData {
       travelTime: json['travelTime'],
       totalKm: json['totalKm']?.toDouble(),
       date: parseDate(json['fecha'] ?? json['date']),
+      imageUrl: json['imageUrl'],         // ← NUEVO
+      imageFilename: json['imageFilename'], // ← NUEVO
+    );
+  }
+
+  TripData copyWith({
+    int? id,
+    double? distance,
+    double? consumption,
+    String? consumptionUnit,
+    double? fuelPrice,
+    double? totalCost,
+    double? litersPer100Km,
+    String? travelTime,
+    double? totalKm,
+    DateTime? date,
+    String? imageUrl,
+    String? imageFilename,
+  }) {
+    return TripData(
+      id: id ?? this.id,
+      distance: distance ?? this.distance,
+      consumption: consumption ?? this.consumption,
+      consumptionUnit: consumptionUnit ?? this.consumptionUnit,
+      fuelPrice: fuelPrice ?? this.fuelPrice,
+      totalCost: totalCost ?? this.totalCost,
+      litersPer100Km: litersPer100Km ?? this.litersPer100Km,
+      travelTime: travelTime ?? this.travelTime,
+      totalKm: totalKm ?? this.totalKm,
+      date: date ?? this.date,
+      imageUrl: imageUrl ?? this.imageUrl,
+      imageFilename: imageFilename ?? this.imageFilename,
     );
   }
 }

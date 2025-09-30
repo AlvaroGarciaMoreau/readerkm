@@ -54,4 +54,23 @@ class PreferencesService {
     final prefs = await SharedPreferences.getInstance();
     return !prefs.containsKey(_fuelPriceKey);
   }
+
+  // Tokens de imagen
+  static Future<void> saveImageToken(String filename, String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('img_token_$filename', token);
+  }
+
+  static Future<String?> getImageToken(String filename) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('img_token_$filename');
+  }
+
+  static Future<void> clearImageTokens() async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs.getKeys().where((key) => key.startsWith('img_token_'));
+    for (final key in keys) {
+      await prefs.remove(key);
+    }
+  }
 }

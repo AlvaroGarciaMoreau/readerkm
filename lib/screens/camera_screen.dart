@@ -3,6 +3,8 @@ import 'package:camera/camera.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import '../main.dart';
 import '../models/trip_data.dart';
+import '../services/image_upload_service.dart';
+import '../services/preferences_service.dart';
 
 // Extraer tiempo de viaje (buscar patrones tipo 1:23, 12:59, etc)
 String? _extractTravelTime(List<String> lines) {
@@ -36,6 +38,7 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _isInitialized = false;
   bool _isProcessing = false;
   final TextRecognizer _textRecognizer = TextRecognizer();
+  String? _lastCapturedImagePath; // ← NUEVO
 
   @override
   void initState() {
@@ -199,6 +202,7 @@ class _CameraScreenState extends State<CameraScreen> {
 
     try {
       final XFile photo = await _controller!.takePicture();
+      _lastCapturedImagePath = photo.path; // ← NUEVO: Guardar path
       final String recognizedText = await _processImage(photo.path);
       
       if (mounted) {
@@ -251,6 +255,7 @@ class _CameraScreenState extends State<CameraScreen> {
         recognizedText: recognizedText,
         extractedData: extractedData,
         defaultFuelPrice: widget.defaultFuelPrice,
+        imagePath: _lastCapturedImagePath, // ← NUEVO: Pasar path de imagen
         onSave: (tripData) {
           // Cerrar el diálogo primero
           Navigator.pop(context);
@@ -475,6 +480,7 @@ class ResultsDialog extends StatefulWidget {
   final String recognizedText;
   final Map<String, dynamic> extractedData;
   final double defaultFuelPrice;
+  final String? imagePath; // ← NUEVO
   final Function(TripData) onSave;
 
   const ResultsDialog({
@@ -482,6 +488,7 @@ class ResultsDialog extends StatefulWidget {
     required this.recognizedText,
     required this.extractedData,
     required this.defaultFuelPrice,
+    this.imagePath, // ← NUEVO
     required this.onSave,
   });
 
@@ -858,10 +865,12 @@ class _ResultsDialogState extends State<ResultsDialog> {
     if (_isSaving) return;
     if (_formKey.currentState!.validate()) {
       setState(() => _isSaving = true);
+      
       final tripKm = double.parse(_tripKmController.text);
       final consumption = double.parse(_consumptionController.text);
       final fuelPrice = double.parse(_fuelPriceController.text);
       final isL100km = _manualConsumptionUnit == 'L/100km';
+      
       double litersUsed = 0;
       double totalCost = 0;
       double litersPer100Km = 0;
@@ -878,9 +887,70 @@ class _ResultsDialogState extends State<ResultsDialog> {
       final travelTime = widget.extractedData['travelTime'] as String?;
       final totalKm = widget.extractedData['totalKm'] as double?;
 
+      String? imageUrl;
+      String? imageFilename;
+
+      // Intentar subir imagen si hay path y email configurado
+      if (widget.imagePath != null) {
+        try {
+          final email = await PreferencesService.loadEmail();
+          if (email != null && email.isNotEmpty) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('📸 Subiendo imagen...'),
+                  backgroundColor: Colors.blue,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+            
+            final uploadResult = await ImageUploadService.uploadTripImage(
+              imagePath: widget.imagePath!,
+              email: email,
+            );
+            
+            if (uploadResult != null && uploadResult['success'] == true) {
+              imageUrl = uploadResult['url'];
+              imageFilename = uploadResult['filename'];
+              
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('✅ Imagen guardada en la nube'),
+                    backgroundColor: Colors.green,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            } else {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('⚠️ Viaje guardado, pero imagen no se pudo subir'),
+                    backgroundColor: Colors.orange,
+                    duration: Duration(seconds: 3),
+                  ),
+                );
+              }
+            }
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('⚠️ Error subiendo imagen: $e'),
+                backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        }
+      }
+
       final tripData = TripData(
         distance: tripKm,
-        consumption: consumption, // Guardar el valor tal cual lo ve el usuario
+        consumption: consumption,
         consumptionUnit: _manualConsumptionUnit,
         fuelPrice: fuelPrice,
         totalCost: totalCost,
@@ -888,6 +958,8 @@ class _ResultsDialogState extends State<ResultsDialog> {
         travelTime: travelTime,
         totalKm: totalKm,
         date: DateTime.now(),
+        imageUrl: imageUrl,         // ← NUEVO
+        imageFilename: imageFilename, // ← NUEVO
       );
 
       if (mounted) setState(() => _isSaving = false);

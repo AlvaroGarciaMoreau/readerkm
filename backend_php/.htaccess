@@ -1,0 +1,22 @@
+# Denegar acceso directo a todas las imágenes
+Order Deny,Allow
+Deny from all
+
+# Mensaje personalizado para acceso denegado
+ErrorDocument 403 "Acceso denegado. Las imágenes son privadas."
+
+# Denegar acceso a archivos de sistema
+<Files ~ "^\.(htaccess|htpasswd)$">
+    Order Deny,Allow
+    Deny from all
+</Files>
+
+# Prevenir listado de directorios
+Options -Indexes
+
+# Headers de seguridad adicionales
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options nosniff
+    Header always set X-Frame-Options DENY
+    Header always set X-XSS-Protection "1; mode=block"
+</IfModule>

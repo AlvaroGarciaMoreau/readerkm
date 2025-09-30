@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/trip_data.dart';
+import '../services/image_upload_service.dart';
 
 class TripCard extends StatelessWidget {
   final TripData trip;
@@ -93,11 +94,74 @@ class TripCard extends StatelessWidget {
             ),
             
             // Información adicional si está disponible
-            if (trip.travelTime != null || trip.totalKm != null) 
+            if (trip.travelTime != null || trip.totalKm != null || trip.imageUrl != null) 
               ...[
               const SizedBox(height: 12),
               const Divider(height: 1),
               const SizedBox(height: 8),
+              
+              // Mostrar imagen si está disponible
+              if (trip.imageUrl != null) 
+                ...[
+                GestureDetector(
+                  onTap: () => _showImageDialog(context),
+                  child: Container(
+                    height: 80,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: FutureBuilder<String?>(
+                        future: ImageUploadService.getSecureImageUrl(trip.imageFilename ?? ''),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasData && snapshot.data != null) {
+                            return Image.network(
+                              snapshot.data!,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return const Center(
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  color: Colors.grey.shade100,
+                                  child: const Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.broken_image, color: Colors.grey),
+                                      Text('Error cargando imagen', 
+                                           style: TextStyle(fontSize: 10, color: Colors.grey)),
+                                    ],
+                                  ),
+                                );
+                              },
+                            );
+                          } else {
+                            return Container(
+                              color: Colors.grey.shade100,
+                              child: const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.photo, color: Colors.grey),
+                                  Text('📸 Imagen del viaje', 
+                                       style: TextStyle(fontSize: 10, color: Colors.grey)),
+                                ],
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              
               Row(
                 children: [
                   if (trip.travelTime != null) 
@@ -190,6 +254,110 @@ class TripCard extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  void _showImageDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: FutureBuilder<String?>(
+          future: ImageUploadService.getSecureImageUrl(trip.imageFilename ?? ''),
+          builder: (context, snapshot) {
+            if (snapshot.hasData && snapshot.data != null) {
+              return Stack(
+                children: [
+                  Center(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.5),
+                            blurRadius: 10,
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          snapshot.data!,
+                          fit: BoxFit.contain,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              width: 200,
+                              height: 200,
+                              color: Colors.white,
+                              child: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: 200,
+                              height: 200,
+                              color: Colors.white,
+                              child: const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.broken_image, 
+                                       size: 48, color: Colors.grey),
+                                  SizedBox(height: 8),
+                                  Text('Error cargando imagen',
+                                       style: TextStyle(color: Colors.grey)),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 40,
+                    right: 20,
+                    child: GestureDetector(
+                      onTap: () => Navigator.of(context).pop(),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            } else {
+              return Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Cargando imagen...'),
+                  ],
+                ),
+              );
+            }
+          },
+        ),
       ),
     );
   }
