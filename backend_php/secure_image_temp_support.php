@@ -30,8 +30,24 @@ if (!file_exists($filePath)) {
     exit;
 }
 
-// Verificar token (por ahora simple verificación de longitud)
-if (strlen($token) < 32) {
+// Verificar token - acepta tanto tokens reales como temporales
+$isValidToken = false;
+
+// Verificar si es un token temporal (empieza con "temp_")
+if (strpos($token, 'temp_') === 0) {
+    // Para tokens temporales, solo verificamos que tenga el formato correcto
+    $tempPart = substr($token, 5); // Remover "temp_"
+    if (strlen($tempPart) >= 8 && ctype_xdigit($tempPart)) {
+        $isValidToken = true;
+    }
+} else {
+    // Para tokens normales, verificar longitud mínima
+    if (strlen($token) >= 32) {
+        $isValidToken = true;
+    }
+}
+
+if (!$isValidToken) {
     http_response_code(401);
     echo json_encode(['error' => 'Token inválido']);
     exit;

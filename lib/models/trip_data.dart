@@ -10,8 +10,8 @@ class TripData {
   final String? travelTime;
   final double? totalKm;
   final DateTime date;
-  final String? imageUrl;        // ← NUEVO
-  final String? imageFilename;   // ← NUEVO
+  final String? imageUrl;        // URL directa de la imagen
+  final String? imageFilename;   // Nombre del archivo (para referencia)
 
   TripData({
     this.id,
@@ -24,8 +24,8 @@ class TripData {
     this.travelTime,
     this.totalKm,
     required this.date,
-    this.imageUrl,        // ← NUEVO
-    this.imageFilename,   // ← NUEVO
+    this.imageUrl,        
+    this.imageFilename,   
   });
 
   Map<String, dynamic> toJson() {
@@ -40,12 +40,14 @@ class TripData {
       'travelTime': travelTime,
       'totalKm': totalKm,
       'date': date.millisecondsSinceEpoch,
-      'imageUrl': imageUrl,         // ← NUEVO
-      'imageFilename': imageFilename, // ← NUEVO
+      'imageUrl': imageUrl,         
+      'imageFilename': imageFilename, 
     };
   }
 
   factory TripData.fromJson(Map<String, dynamic> json) {
+    // DEBUG: Imprimir los datos JSON recibidos
+    
     DateTime parseDate(dynamic value) {
       if (value == null) return DateTime.now();
       if (value is int) {
@@ -62,7 +64,8 @@ class TripData {
       }
       return DateTime.now();
     }
-    return TripData(
+    
+    final tripData = TripData(
       id: json['id'] != null ? int.tryParse(json['id'].toString()) : null,
       distance: json['distance'].toDouble(),
       consumption: json['consumption'].toDouble(),
@@ -73,9 +76,13 @@ class TripData {
       travelTime: json['travelTime'],
       totalKm: json['totalKm']?.toDouble(),
       date: parseDate(json['fecha'] ?? json['date']),
-      imageUrl: json['imageUrl'],         // ← NUEVO
-      imageFilename: json['imageFilename'], // ← NUEVO
+      imageUrl: json['imageUrl'],         
+      imageFilename: json['imageFilename'], 
     );
+    
+    // DEBUG: Imprimir el TripData creado
+    
+    return tripData;
   }
 
   TripData copyWith({

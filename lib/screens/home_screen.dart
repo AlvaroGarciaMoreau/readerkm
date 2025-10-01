@@ -90,7 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadTripsFromBackend() async {
     try {
-      final url = Uri.parse('https://www.moreausoft.com/ReaderKM/listar_viajes.php');
+      final url = Uri.parse('https://www.moreausoft.com/ReaderKM/fotos/listar_viajes_with_images.php');
             final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -193,7 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
            return;
          }
          try {
-           final url = Uri.parse('https://www.moreausoft.com/ReaderKM/borrar_viaje.php');
+           final url = Uri.parse('https://www.moreausoft.com/ReaderKM/fotos/guardar_viaje_with_images.php');
            final response = await http.post(
             url,
             headers: {'Content-Type': 'application/json'},
@@ -391,7 +391,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (isEmailMode) {
           // Save to backend
           try {
-            final url = Uri.parse('https://www.moreausoft.com/ReaderKM/guardar_viaje.php');
+            final url = Uri.parse('https://www.moreausoft.com/ReaderKM/fotos/guardar_viaje_with_images.php');
                         final response = await http.post(
               url,
               headers: {'Content-Type': 'application/json'},

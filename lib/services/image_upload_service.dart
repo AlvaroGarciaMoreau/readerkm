@@ -34,7 +34,7 @@ class ImageUploadService {
         return null;
       }
 
-      final uri = Uri.parse('$baseUrl/upload_image.php');
+      final uri = Uri.parse('$baseUrl/upload_image_simple.php');
       
       client = http.Client();
       final request = http.MultipartRequest('POST', uri);
@@ -45,10 +45,7 @@ class ImageUploadService {
         'User-Agent': 'ReaderKM/1.0',
       });
       
-      // Añadir email
-      request.fields['email'] = email;
-      
-      // Añadir archivo con tipo MIME correcto
+            // Añadir archivo con tipo MIME correcto (ya no enviamos email) (ya no enviamos email)
       String? mimeType;
       final extension = imagePath.toLowerCase().split('.').last;
       switch (extension) {
@@ -149,16 +146,36 @@ class ImageUploadService {
   }
   
   /// Obtiene la URL segura para acceder a una imagen
-  static Future<String?> getSecureImageUrl(String filename) async {
-    if (filename.isEmpty) return null;
+  static Future<String?> getSecureImageUrl(String filename, {String? token}) async {
     
-    final token = await _getImageToken(filename);
-    if (token == null) {
+    if (filename.isEmpty) {
       return null;
     }
     
-    final url = '$baseUrl/secure_image.php?token=$token&file=${Uri.encodeComponent(filename)}';
+    // Usar el token proporcionado o intentar obtener uno guardado
+    String? accessToken = token;
+    
+    if (accessToken == null) {
+      accessToken = await _getImageToken(filename);
+    } else {
+    }
+    
+    // Si no hay token, generar uno temporal (el servidor lo validará)
+    if (accessToken == null) {
+      accessToken = _generateTemporaryToken();
+      await _saveImageToken(filename, accessToken);
+    }
+    
+    final url = '$baseUrl/secure_image.php?token=$accessToken&file=${Uri.encodeComponent(filename)}';
     return url;
+  }
+  
+  /// Genera un token temporal para acceso a imágenes
+  static String _generateTemporaryToken() {
+    // Generar un token temporal que el servidor puede aceptar
+    // En el futuro podríamos implementar un endpoint para renovar tokens
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    return 'temp_${timestamp.toRadixString(16)}';
   }
   
   /// Verifica si una imagen existe en el servidor

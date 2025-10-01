@@ -17,21 +17,11 @@ if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
     exit;
 }
 
-// Verificar que se haya proporcionado el email
-if (!isset($_POST['email']) || empty($_POST['email'])) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Email requerido']);
-    exit;
-}
-
-$email = $_POST['email'];
 $uploadedFile = $_FILES['image'];
 
-// Validar tipo de archivo - CORREGIDO PARA ACEPTAR JPG Y JPEG
+// Validar tipo de archivo
 $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
 $fileType = $uploadedFile['type'];
-
-// También verificar la extensión del archivo como respaldo
 $fileExtension = strtolower(pathinfo($uploadedFile['name'], PATHINFO_EXTENSION));
 $allowedExtensions = ['jpg', 'jpeg', 'png'];
 
@@ -70,16 +60,15 @@ if (!move_uploaded_file($uploadedFile['tmp_name'], $filePath)) {
     exit;
 }
 
-// Generar token para acceso a la imagen
-$token = bin2hex(random_bytes(32));
-$expiryTime = time() + (30 * 24 * 60 * 60); // 30 días
+// Generar URL directa para acceso a la imagen
+$baseUrl = 'https://www.moreausoft.com/ReaderKM/fotos';
+$imageUrl = $baseUrl . '/trip_images/' . $fileName;
 
-// Respuesta exitosa
+// Respuesta exitosa con URL directa
 echo json_encode([
     'success' => true,
     'filename' => $fileName,
-    'token' => $token,
-    'expires' => $expiryTime,
-    'url' => 'secure_image.php?token=' . $token . '&file=' . urlencode($fileName)
+    'url' => $imageUrl,
+    'message' => 'Imagen subida correctamente'
 ]);
 ?>
