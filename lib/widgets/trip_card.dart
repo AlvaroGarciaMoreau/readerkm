@@ -14,182 +14,174 @@ class TripCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  String _formatDate(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  String _formatTime(DateTime date) {
+    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
-  // Obtiene la URL segura para la imagen
   Future<String?> _getSecureImageUrl() async {
     if (trip.imageFilename == null || trip.imageFilename!.isEmpty) {
       return null;
     }
-
     return await ImageUploadService.getSecureImageUrl(trip.imageFilename!);
   }
 
   @override
   Widget build(BuildContext context) {
-    final formattedDate = _formatDate(trip.date);
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final formattedTime = _formatTime(trip.date);
 
-    return Card(
-      elevation: 3,
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20), // Aumentado para separación
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24), // Bordes más suaves
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.primary.withValues(alpha: 0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
+          ),
+        ],
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.05), width: 1.5),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header con fecha y botón eliminar
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.directions_car, size: 20, color: Colors.blue),
-                    const SizedBox(width: 8),
-                    Text(
-                      formattedDate,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: onDelete,
-                  tooltip: 'Eliminar viaje',
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            
-            // Información principal en tarjetas
-            Row(
-              children: [
-                Expanded(
-                  child: _buildInfoCard(
-                    icon: Icons.speed,
-                    label: 'Distancia',
-                    value: '${trip.distance.toStringAsFixed(1)} km',
-                    color: Colors.blue,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildInfoCard(
-                    icon: Icons.local_gas_station,
-                    label: 'Consumo',
-                    value: trip.consumptionUnit == 'L/100km' 
-                        ? '${trip.consumption.toStringAsFixed(1)} L/100km'
-                        : '${trip.consumption.toStringAsFixed(1)} km/L',
-                    subtitle: trip.consumptionUnit == 'L/100km'
-                        ? '(${(100/trip.consumption).toStringAsFixed(1)} km/L)'
-                        : '(${trip.litersPer100Km.toStringAsFixed(1)} L/100km)',
-                    color: Colors.orange,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildInfoCard(
-                    icon: Icons.euro,
-                    label: 'Total',
-                    value: '${trip.totalCost.toStringAsFixed(2)} €',
-                    color: Colors.green,
-                  ),
-                ),
-              ],
-            ),
-            
-            // Información adicional si está disponible
-            if (trip.travelTime != null || trip.totalKm != null || trip.imageUrl != null) 
-              ...[
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              const SizedBox(height: 8),
-              
-              // Mostrar imagen si está disponible
-              if (trip.imageUrl != null && trip.imageUrl!.isNotEmpty) 
-                ...[
-                Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            // Header: Solo hora y botón borrar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.photo, size: 16, color: Colors.blue),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text('Imagen del viaje', 
-                                 style: const TextStyle(
-                                   fontSize: 12, 
-                                   fontWeight: FontWeight.bold,
-                                   color: Colors.blue,
-                                 ),
-                                 overflow: TextOverflow.ellipsis),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      GestureDetector(
-                        onTap: () => _showImageDialog(context),
-                        child: Container(
-                          height: 80,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey.shade300),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: _buildRobustImage(),
-                          ),
+                      Icon(Icons.access_time_rounded, size: 16, color: Colors.grey.shade400),
+                      const SizedBox(width: 6),
+                      Text(
+                        formattedTime,
+                        style: textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: Colors.grey.shade500,
+                          letterSpacing: 0.5,
                         ),
                       ),
                     ],
                   ),
-                ),
-              ],
-              
-              Row(
+                  IconButton(
+                    icon: Icon(Icons.remove_circle_outline, color: Colors.red.shade200, size: 20),
+                    onPressed: onDelete,
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Eliminar viaje',
+                  ),
+                ],
+              ),
+            ),
+            
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
                 children: [
-                  if (trip.travelTime != null) 
-                    ...[
-                    const Icon(Icons.schedule, size: 16, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Tiempo: ${trip.travelTime}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                  if (trip.travelTime != null && trip.totalKm != null)
-                    const SizedBox(width: 16),
-                  if (trip.totalKm != null) 
-                    ...[
-                    const Icon(Icons.speed, size: 16, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Odómetro: ${trip.totalKm!.toStringAsFixed(0)} km',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  // Main technical data Row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildInfoItem(
+                          context,
+                          icon: Icons.route_outlined,
+                          label: 'DISTANCIA',
+                          value: trip.distance.toStringAsFixed(1),
+                          unit: 'km',
+                          color: const Color(0xFF2D62ED),
+                        ),
+                      ),
+                      Container(height: 40, width: 1, color: Colors.grey.shade100),
+                      Expanded(
+                        child: _buildInfoItem(
+                          context,
+                          icon: Icons.local_gas_station_outlined,
+                          label: 'CONSUMO',
+                          value: trip.consumption.toStringAsFixed(1),
+                          unit: trip.consumptionUnit,
+                          color: Colors.orange.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 32),
+                  
+                  // Cost highlight (Large for visibility)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'COSTE ESTIMADO',
+                            style: textTheme.labelLarge?.copyWith(
+                              letterSpacing: 1.2,
+                              color: Colors.grey.shade600,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            '${trip.totalCost.toStringAsFixed(2)} €',
+                            style: textTheme.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: Colors.green.shade700,
+                              fontSize: 28, // Muy grande para vista cansada
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      // Extra details pill
+                      if (trip.totalKm != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(100),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.speed, size: 14, color: Colors.grey.shade700),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${trip.totalKm!.toStringAsFixed(0)} km totales',
+                                style: textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                  
+                  // Secondary details row
+                  if (trip.travelTime != null || trip.imageFilename != null) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        if (trip.travelTime != null)
+                          _buildDetailChip(Icons.timer_outlined, trip.travelTime!),
+                        if (trip.travelTime != null && trip.imageFilename != null)
+                          const SizedBox(width: 8),
+                        if (trip.imageFilename != null)
+                          GestureDetector(
+                            onTap: () => _showImageDialog(context),
+                            child: _buildDetailChip(Icons.photo_outlined, 'Ver Foto', isAction: true),
+                          ),
+                      ],
                     ),
                   ],
                 ],
               ),
-            ],
-            
-            // Información del precio de combustible
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.info_outline, size: 16, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text(
-                  'Precio combustible: ${trip.fuelPrice.toStringAsFixed(2)} €/L',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ],
             ),
           ],
         ),
@@ -197,140 +189,84 @@ class TripCard extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoCard({
+  Widget _buildInfoItem(
+    BuildContext context, {
     required IconData icon,
     required String label,
     required String value,
-    String? subtitle,
+    required String unit,
     required Color color,
   }) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 14, color: Colors.grey.shade500),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        RichText(
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: value,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
+              TextSpan(
+                text: ' $unit',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: color.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailChip(IconData icon, String label, {bool isAction = false}) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: isAction ? Colors.blue.shade50 : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: isAction ? Colors.blue.shade200 : Colors.grey.shade200),
       ),
-      child: Column(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: 4),
+          Icon(icon, size: 14, color: isAction ? Colors.blue.shade700 : Colors.grey.shade600),
+          const SizedBox(width: 4),
           Text(
             label,
             style: TextStyle(
-              fontSize: 10,
-              color: color.withValues(alpha: 0.8),
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 10,
-                color: color.withValues(alpha: 0.6),
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRobustImage() {
-    return FutureBuilder<String?>(
-      future: _getSecureImageUrl(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Container(
-            color: Colors.grey.shade100,
-            child: const Center(
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          );
-        }
-
-        final imageUrl = snapshot.data;
-        if (imageUrl == null || imageUrl.isEmpty) {
-          return _buildImagePlaceholder('No hay imagen disponible', Colors.grey);
-        }
-
-        return _tryLoadImage(imageUrl);
-      },
-    );
-  }
-
-  Widget _tryLoadImage(String imageUrl) {
-    return Image.network(
-      imageUrl,
-      fit: BoxFit.cover,
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return Container(
-          color: Colors.grey.shade100,
-          child: const Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(strokeWidth: 2),
-              SizedBox(height: 4),
-              Text('Cargando imagen...',
-                   style: TextStyle(fontSize: 10, color: Colors.grey)),
-            ],
-          ),
-        );
-      },
-      errorBuilder: (context, error, stackTrace) {
-
-        // Mostrar placeholder de error
-        return _buildImagePlaceholder('Error cargando imagen', Colors.red);
-      },
-    );
-  }
-
-  Widget _buildImagePlaceholder(String message, Color color) {
-    return Container(
-      color: color.withValues(alpha: 0.1),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.photo_camera, color: color, size: 24),
-          const SizedBox(height: 4),
-          const Text('Imagen guardada', 
-               style: TextStyle(fontSize: 10, color: Colors.blue, fontWeight: FontWeight.bold)),
-          Text('($message)', 
-               style: TextStyle(fontSize: 8, color: color)),
-          const SizedBox(height: 2),
-          GestureDetector(
-            onTap: () async {
-              await _getSecureImageUrl();
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade100,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Text('Ver detalles',
-                   style: TextStyle(fontSize: 8, color: Colors.blue)),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isAction ? Colors.blue.shade700 : Colors.grey.shade600,
             ),
           ),
         ],
       ),
     );
   }
-
 
   void _showImageDialog(BuildContext context) async {
     final imageUrl = await _getSecureImageUrl();
@@ -341,68 +277,30 @@ class TripCard extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(10),
         child: Stack(
+          alignment: Alignment.center,
           children: [
-            Center(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      blurRadius: 10,
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.contain,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Container(
-                        width: 300,
-                        height: 300,
-                        color: Colors.black54,
-                        child: const Center(
-                          child: CircularProgressIndicator(color: Colors.white),
-                        ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: 300,
-                        height: 300,
-                        color: Colors.black54,
-                        child: const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.broken_image, color: Colors.white, size: 50),
-                            SizedBox(height: 8),
-                            Text('Error cargando imagen',
-                                 style: TextStyle(color: Colors.white)),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: InteractiveViewer(
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return const Center(child: CircularProgressIndicator(color: Colors.white));
+                  },
                 ),
               ),
             ),
             Positioned(
-              top: 20,
-              right: 20,
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.black.withValues(alpha: 0.5),
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
+              top: 10,
+              right: 10,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                onPressed: () => Navigator.of(context).pop(),
               ),
             ),
           ],

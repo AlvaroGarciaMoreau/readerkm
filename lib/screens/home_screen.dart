@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/trip_data.dart';
 import '../services/preferences_service.dart';
+import '../services/trip_service.dart';
 import '../widgets/camera_scan_section.dart';
 import '../widgets/trip_card.dart';
 import 'camera_screen.dart';
@@ -19,8 +17,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   double _fuelPrice = 1.50;
   String? _email;
-  bool localMode = false;
   List<TripData> trips = [];
+  bool _isLoading = true;
   bool _showEmailWarning = true;
 
   bool get isEmailMode => _email != null && _email!.isNotEmpty;
@@ -28,144 +26,62 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadFuelPrice();
-    _loadEmailAndTrips();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final prefs = await SharedPreferences.getInstance();
-      final shown = prefs.getBool('email_dialog_shown') ?? false;
-      if (!shown) {
-        if (mounted) _showEmailDialog();
-        await prefs.setBool('email_dialog_shown', true);
-      }
-    });
+    _initializeApp();
   }
 
-  Future<void> _loadFuelPrice() async {
-    final price = await PreferencesService.loadFuelPrice();
-    if (!mounted) return;
-    setState(() {
-      _fuelPrice = price;
-    });
+  Future<void> _initializeApp() async {
+    setState(() => _isLoading = true);
+    await _loadSettings();
+    await _loadTrips();
+    
+    final prefs = await PreferencesService.isFirstTime();
+    if (prefs && mounted) {
+      _showEmailDialog();
+    }
+    
+    if (mounted) setState(() => _isLoading = false);
   }
 
-  Future<void> _loadEmailAndTrips() async {
+  Future<void> _loadSettings() async {
+    _fuelPrice = await PreferencesService.loadFuelPrice();
     _email = await PreferencesService.loadEmail();
-    if (isEmailMode) {
-      await _loadTripsFromBackend();
-      // Si hay email configurado, ocultar la advertencia
+    if (!isEmailMode) {
+      Future.delayed(const Duration(seconds: 8), () {
+        if (mounted) {
+          setState(() {
+            _showEmailWarning = false;
+          });
+        }
+      });
+    } else {
+      _showEmailWarning = false;
+    }
+  }
+
+  Future<void> _loadTrips() async {
+    try {
+      final loadedTrips = await TripService.loadTrips(_email);
       if (mounted) {
         setState(() {
-          _showEmailWarning = false;
+          trips = loadedTrips;
         });
       }
-    } else {
-      localMode = true;
-      await _loadTripsLocal();
-      // Si no hay email, programar ocultar la advertencia después de 5 segundos
+    } catch (e) {
       if (mounted) {
-        Future.delayed(const Duration(seconds: 5), () {
-          if (mounted) {
-            setState(() {
-              _showEmailWarning = false;
-            });
-          }
-        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar viajes: $e')),
+        );
       }
     }
-    if (!mounted) return;
-    setState(() {});
-  }
-
-  Future<void> _loadTripsLocal() async {
-    final prefs = await SharedPreferences.getInstance();
-    final tripsJson = prefs.getStringList('local_trips') ?? [];
-    trips = tripsJson.map((j) => TripData.fromJson(jsonDecode(j))).toList();
-  }
-
-  Future<void> _saveTripsLocal() async {
-    final prefs = await SharedPreferences.getInstance();
-    final tripsJson = trips.map((t) => jsonEncode(t.toJson())).toList();
-    await prefs.setStringList('local_trips', tripsJson);
-  }
-
-  Future<void> _loadTripsFromBackend() async {
-    try {
-      final url = Uri.parse('https://www.moreausoft.com/ReaderKM/fotos/listar_viajes_with_images.php');
-            final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': _email}),
-      ).timeout(const Duration(seconds: 30));
-        if (!mounted) return;
-      if (response.statusCode == 200) {
-        try {
-          final resp = jsonDecode(response.body);
-          if (resp['success'] == true && resp['viajes'] != null) {
-            List<TripData> loadedTrips = (resp['viajes'] as List).map((json) => TripData.fromJson(json)).toList();
-            loadedTrips.sort((a, b) => b.date.compareTo(a.date));
-            trips = loadedTrips;
-          } else {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Error al cargar viajes: ${resp['error'] ?? 'Error desconocido'}')),
-              );
-            }
-          }
-        } catch (jsonError) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error en la respuesta del servidor: Formato inválido'),
-                duration: const Duration(seconds: 4),
-              ),
-            );
-          }
-          debugPrint('Error parsing JSON response: ${response.body}');
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error del servidor (${response.statusCode}): ${response.body}'),
-              duration: const Duration(seconds: 4),
-            ),
-          );
-        }
-      }
-          } catch (e) {
-        if (mounted) {
-          String errorMessage = 'Error de red al cargar viajes';
-          if (e.toString().contains('TimeoutException')) {
-            errorMessage = 'Tiempo de espera agotado al cargar viajes';
-          } else if (e.toString().contains('SocketException')) {
-            errorMessage = 'Error de conexión al cargar viajes';
-          } else {
-            errorMessage = 'Error de red al cargar viajes: $e';
-          }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorMessage),
-              duration: const Duration(seconds: 4),
-            ),
-          );
-        }
-      }
-  }
-
-  Future<void> _saveFuelPrice(double price) async {
-    await PreferencesService.saveFuelPrice(price);
-    if (!mounted) return;
-    setState(() {
-      _fuelPrice = price;
-    });
   }
 
   Future<void> _deleteTrip(int index) async {
+    final trip = trips[index];
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('¿Eliminar viaje?'),
-        content: const Text('¿Estás seguro de que deseas eliminar este viaje? Esta acción no se puede deshacer.'),
+        content: const Text('Esta acción no se puede deshacer.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -173,99 +89,28 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Eliminar'),
           ),
         ],
       ),
     );
-         if (confirm == true) {
-       if (isEmailMode) {
-         final tripId = trips[index].id;
-         if (tripId == null) {
-           if (mounted) {
-             ScaffoldMessenger.of(context).showSnackBar(
-               const SnackBar(
-                 content: Text('No se puede eliminar un viaje que aún no se ha guardado en el servidor'),
-                 duration: Duration(seconds: 3),
-               ),
-             );
-           }
-           return;
-         }
-         try {
-           final url = Uri.parse('https://www.moreausoft.com/ReaderKM/fotos/guardar_viaje_with_images.php');
-           final response = await http.post(
-            url,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'id': tripId, 'email': _email}),
-          ).timeout(const Duration(seconds: 30));
-            if (!mounted) return;
-          if (response.statusCode == 200) {
-            try {
-              final resp = jsonDecode(response.body);
-              if (resp['success'] == true) {
-                setState(() {
-                  trips.removeAt(index);
-                });
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Viaje eliminado correctamente')),
-                  );
-                }
-              } else {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error al eliminar viaje: ${resp['error'] ?? 'Error desconocido'}')),
-                  );
-                }
-              }
-            } catch (jsonError) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Error en la respuesta del servidor: Formato inválido'),
-                    duration: const Duration(seconds: 4),
-                  ),
-                );
-              }
-              debugPrint('Error parsing JSON response: ${response.body}');
-            }
-          } else {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error del servidor (${response.statusCode}): ${response.body}'),
-                  duration: const Duration(seconds: 4),
-                ),
-              );
-            }
-          }
-        } catch (e) {
-          if (mounted) {
-            String errorMessage = 'Error de red al eliminar viaje';
-            if (e.toString().contains('TimeoutException')) {
-              errorMessage = 'Tiempo de espera agotado al eliminar viaje';
-            } else if (e.toString().contains('SocketException')) {
-              errorMessage = 'Error de conexión al eliminar viaje';
-            } else {
-              errorMessage = 'Error de red al eliminar viaje: $e';
-            }
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(errorMessage),
-                duration: const Duration(seconds: 4),
-              ),
-            );
-          }
-        }
-      } else {
+
+    if (confirm == true) {
+      try {
+        await TripService.deleteTrip(trip, _email, trips);
         setState(() {
           trips.removeAt(index);
         });
-        await _saveTripsLocal();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Viaje eliminado correctamente')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al eliminar: $e')),
           );
         }
       }
@@ -277,34 +122,30 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Precio de gasolina'),
+        title: const Text('Precio de Gasolina'),
         content: TextField(
           controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(hintText: 'Euros/litro'),
-          onChanged: (value) {
-            final price = double.tryParse(value);
-            if (price != null) {
-              setState(() {
-                _fuelPrice = price;
-              });
-              PreferencesService.saveFuelPrice(price);
-            }
-          },
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            hintText: 'Ej: 1.59',
+            suffixText: '€/L',
+            border: OutlineInputBorder(),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancelar'),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () async {
-              final price = double.tryParse(controller.text);
+              final price = double.tryParse(controller.text.replaceAll(',', '.'));
               if (price != null) {
-                await _saveFuelPrice(price);
-              }
-              if (context.mounted) {
-                Navigator.pop(context);
+                await PreferencesService.saveFuelPrice(price);
+                if (mounted) {
+                  setState(() => _fuelPrice = price);
+                  Navigator.pop(context);
+                }
               }
             },
             child: const Text('Guardar'),
@@ -324,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Ingresa tu correo electrónico para sincronizar tus viajes entre dispositivos:',
+              'Ingresa tu correo para sincronizar tus viajes entre dispositivos:',
               style: TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 16),
@@ -337,35 +178,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Deja vacío para usar solo almacenamiento local',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
+            onPressed: () => Navigator.pop(context),
             child: const Text('Cancelar'),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () async {
               final email = controller.text.trim();
               await PreferencesService.saveEmail(email);
-              _email = email.isNotEmpty ? email : null;
-              if (context.mounted) {
+              if (mounted) {
+                setState(() {
+                  _email = email.isNotEmpty ? email : null;
+                  if (email.isNotEmpty) _showEmailWarning = false;
+                });
                 Navigator.pop(context);
-                // Ocultar la advertencia si se configuró un email
-                if (email.isNotEmpty) {
-                  setState(() {
-                    _showEmailWarning = false;
-                  });
-                }
+                _loadTrips();
               }
-              await _loadEmailAndTrips();
             },
             child: const Text('Guardar'),
           ),
@@ -378,105 +209,30 @@ class _HomeScreenState extends State<HomeScreen> {
     final cameraPermission = await Permission.camera.request();
     if (cameraPermission.isGranted) {
       if (!mounted) return;
-              final result = await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CameraScreen(defaultFuelPrice: _fuelPrice),
-          ),
-        );
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CameraScreen(defaultFuelPrice: _fuelPrice),
+        ),
+      );
+      
       if (result != null && result is TripData) {
-        setState(() {
-          trips.insert(0, result);
-        });
-        if (isEmailMode) {
-          // Save to backend
-          try {
-            final url = Uri.parse('https://www.moreausoft.com/ReaderKM/fotos/guardar_viaje_with_images.php');
-                        final response = await http.post(
-              url,
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({
-                'email': _email,
-                ...result.toJson(),
-              }),
-            ).timeout(const Duration(seconds: 30));
-              if (!mounted) return;
-            if (response.statusCode == 200) {
-                             try {
-                 final resp = jsonDecode(response.body);
-                 if (resp['success'] == true) {
-                   // Actualizar el ID del viaje con el ID devuelto por el servidor
-                   if (resp['id'] != null) {
-                     setState(() {
-                       trips[0] = TripData(
-                         id: int.tryParse(resp['id'].toString()),
-                         distance: trips[0].distance,
-                         consumption: trips[0].consumption,
-                         consumptionUnit: trips[0].consumptionUnit,
-                         fuelPrice: trips[0].fuelPrice,
-                         totalCost: trips[0].totalCost,
-                         litersPer100Km: trips[0].litersPer100Km,
-                         travelTime: trips[0].travelTime,
-                         totalKm: trips[0].totalKm,
-                         date: trips[0].date,
-                       );
-                     });
-                   }
-                   if (mounted) {
-                     ScaffoldMessenger.of(context).showSnackBar(
-                       const SnackBar(content: Text('Viaje guardado correctamente')),
-                     );
-                   }
-                 } else {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error al guardar viaje: ${resp['error'] ?? 'Error desconocido'}')),
-                    );
-                  }
-                }
-              } catch (jsonError) {
-                // Si la respuesta no es JSON válido, mostrar el error de formato
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error en la respuesta del servidor: Formato inválido'),
-                      duration: const Duration(seconds: 4),
-                    ),
-                  );
-                }
-                debugPrint('Error parsing JSON response: ${response.body}');
-              }
-            } else {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Error del servidor (${response.statusCode}): ${response.body}'),
-                    duration: const Duration(seconds: 4),
-                  ),
-                );
-              }
-            }
-          } catch (e) {
-            if (mounted) {
-              String errorMessage = 'Error de red al guardar viaje';
-              if (e.toString().contains('TimeoutException')) {
-                errorMessage = 'Tiempo de espera agotado al guardar viaje';
-              } else if (e.toString().contains('SocketException')) {
-                errorMessage = 'Error de conexión al guardar viaje';
-              } else {
-                errorMessage = 'Error de red al guardar viaje: $e';
-              }
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(errorMessage),
-                  duration: const Duration(seconds: 4),
-                ),
-              );
-            }
+        try {
+          final savedTrip = await TripService.saveTrip(result, _email);
+          setState(() {
+            trips.insert(0, savedTrip);
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Viaje registrado correctamente')),
+            );
           }
-        } else {
-          // Save locally
-          await _saveTripsLocal();
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error al guardar: $e')),
+            );
+          }
         }
       }
     } else {
@@ -490,92 +246,105 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         title: const Text('ReaderKM'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings),
+            icon: const Icon(Icons.settings_outlined),
             onPressed: _showEmailDialog,
             tooltip: 'Configuración',
           ),
           IconButton(
-            icon: const Icon(Icons.local_gas_station),
+            icon: const Icon(Icons.local_gas_station_outlined),
             onPressed: _showFuelPriceDialog,
-            tooltip: 'Configurar precio de gasolina',
+            tooltip: 'Precio gasolina',
           ),
           IconButton(
-            icon: const Icon(Icons.calculate),
+            icon: const Icon(Icons.calculate_outlined),
             onPressed: _showCalculatorDialog,
-            tooltip: 'Calculadora de viaje',
+            tooltip: 'Calculadora',
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (!isEmailMode && _showEmailWarning)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                padding: const EdgeInsets.all(8),
-                margin: const EdgeInsets.only(bottom: 8),
-                decoration: BoxDecoration(
-                  color: Colors.yellow[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  'No has ingresado correo electrónico. Tus viajes se guardarán solo localmente y no se podrán recuperar en otro dispositivo.',
-                  style: TextStyle(color: Colors.black87),
-                ),
-              ),
-            CameraScanSection(
-              fuelPrice: _fuelPrice,
-              onScanPressed: _startCamera,
-            ),
-            const SizedBox(height: 24),
-            Expanded(
-              child: trips.isNotEmpty
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text(
-                          'Historial de Viajes',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+      body: RefreshIndicator(
+        onRefresh: _loadTrips,
+        child: _isLoading 
+          ? const Center(child: CircularProgressIndicator()) 
+          : CustomScrollView(
+              slivers: [
+                if (!isEmailMode && _showEmailWarning)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.amber.shade200),
                         ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: ListView.builder(
-                            itemCount: trips.length,
-                            itemBuilder: (context, index) {
-                              return TripCard(
-                                trip: trips[index],
-                                index: index,
-                                onDelete: () => _deleteTrip(index),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    )
-                  : Center(
-                      child: Text(
-                        '¡Aún no has registrado ningún viaje!\nPulsa el botón de la cámara para guardar tu primer viaje y verás aquí tu historial.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey,
-                          fontWeight: FontWeight.w600,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.warning_amber_rounded, color: Colors.amber),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Text(
+                                'Modo local: Configura tu email para no perder tus datos.',
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
+                  ),
+                
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: CameraScanSection(
+                      fuelPrice: _fuelPrice,
+                      onScanPressed: _startCamera,
+                    ),
+                  ),
+                ),
+
+                if (trips.isNotEmpty)
+                  ..._buildGroupedTripList(colorScheme)
+                else
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.directions_car_outlined, size: 64, color: Colors.grey.shade300),
+                            const SizedBox(height: 16),
+                            Text(
+                              '¡Aún no hay viajes!',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.grey.shade600),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Pulsa el botón de arriba para registrar tu primer desplazamiento.',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                
+                const SliverToBoxAdapter(child: SizedBox(height: 32)),
+              ],
             ),
-          ],
-        ),
       ),
     );
   }
@@ -586,7 +355,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final fuelPriceController = TextEditingController(text: _fuelPrice.toString());
     String unit = 'L/100km';
     Map<String, dynamic>? result;
-    bool isReplacingConsumption = false;
 
     showDialog(
       context: context,
@@ -600,57 +368,51 @@ class _HomeScreenState extends State<HomeScreen> {
                 TextField(
                   controller: distanceController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Distancia (km)'),
+                  decoration: const InputDecoration(labelText: 'Distancia (km)', border: OutlineInputBorder()),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: consumptionController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Consumo'),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Consumo', border: OutlineInputBorder()),
                   onChanged: (value) {
-                    if (isReplacingConsumption) return;
                     if (value.contains(',')) {
-                      isReplacingConsumption = true;
                       String newValue = value.replaceAll(',', '.');
                       consumptionController.value = consumptionController.value.copyWith(
                         text: newValue,
                         selection: TextSelection.collapsed(offset: newValue.length),
                       );
-                      isReplacingConsumption = false;
                     }
                   },
                 ),
-                DropdownButton<String>(
-                  value: unit,
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: unit,
+                  decoration: const InputDecoration(labelText: 'Unidad', border: OutlineInputBorder()),
                   items: ['km/L', 'L/100km'].map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
+                    return DropdownMenuItem<String>(value: value, child: Text(value));
                   }).toList(),
-                  onChanged: (newValue) {
-                    setState(() {
-                      unit = newValue!;
-                    });
-                  },
+                  onChanged: (newValue) => setState(() => unit = newValue!),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: fuelPriceController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Precio gasolina (€/L)'),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Precio gasolina (€/L)', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 45),
+                  ),
                   onPressed: () {
-                    double distance = double.tryParse(distanceController.text) ?? 0;
-                    double consumption = double.tryParse(consumptionController.text) ?? 0;
-                    double fuelPrice = double.tryParse(fuelPriceController.text) ?? _fuelPrice;
+                    double distance = double.tryParse(distanceController.text.replaceAll(',', '.')) ?? 0;
+                    double consumption = double.tryParse(consumptionController.text.replaceAll(',', '.')) ?? 0;
+                    double fuelPrice = double.tryParse(fuelPriceController.text.replaceAll(',', '.')) ?? _fuelPrice;
 
-                    double litersPer100Km;
-                    if (unit == 'km/L') {
-                      litersPer100Km = 100 / consumption;
-                    } else {
-                      litersPer100Km = consumption;
-                    }
+                    double litersPer100Km = unit == 'km/L' ? 100 / consumption : consumption;
                     double litersUsed = (distance / 100) * litersPer100Km;
                     double totalCost = litersUsed * fuelPrice;
 
@@ -662,13 +424,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       };
                     });
                   },
-                  child: const Text('Calcular'),
+                  child: const Text('CALCULAR'),
                 ),
                 if (result != null) ...[
-                  const SizedBox(height: 16),
-                  Text('Litros por 100km: ${result!['litersPer100Km'].toStringAsFixed(2)}'),
-                  Text('Litros usados: ${result!['litersUsed'].toStringAsFixed(2)}'),
-                  Text('Costo total: ${result!['totalCost'].toStringAsFixed(2)} €'),
+                  const SizedBox(height: 20),
+                  _buildCalcResult('Litros/100km', '${result!['litersPer100Km'].toStringAsFixed(2)} L'),
+                  _buildCalcResult('Litros usados', '${result!['litersUsed'].toStringAsFixed(2)} L'),
+                  _buildCalcResult('COSTE TOTAL', '${result!['totalCost'].toStringAsFixed(2)} €', isBold: true),
                 ],
               ],
             ),
@@ -676,10 +438,137 @@ class _HomeScreenState extends State<HomeScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cerrar'),
+              child: const Text('CERRAR'),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  List<Widget> _buildGroupedTripList(ColorScheme colorScheme) {
+    final List<Widget> slivers = [];
+    
+    // Agrupar por fecha (solo el día)
+    Map<String, List<TripData>> groupedTrips = {};
+    for (var trip in trips) {
+      final dateKey = '${trip.date.year}-${trip.date.month}-${trip.date.day}';
+      if (!groupedTrips.containsKey(dateKey)) {
+        groupedTrips[dateKey] = [];
+      }
+      groupedTrips[dateKey]!.add(trip);
+    }
+
+    // Ordenar las fechas de más reciente a más antigua
+    var sortedKeys = groupedTrips.keys.toList()..sort((a, b) => b.compareTo(a));
+
+    slivers.add(
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+          child: Text(
+            'Historial de Viajes',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    for (var dateKey in sortedKeys) {
+      final dateTrips = groupedTrips[dateKey]!;
+      final firstTripDate = dateTrips.first.date;
+      
+      // Header de día
+      slivers.add(
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    _formatDayHeader(firstTripDate).toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: colorScheme.primary,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: Divider(color: colorScheme.primary.withValues(alpha: 0.1), thickness: 1.5)),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      // Lista de viajes para ese día
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final trip = dateTrips[index];
+                // Buscamos el índice original para el borrado
+                final originalIndex = trips.indexOf(trip);
+                return TripCard(
+                  trip: trip,
+                  index: originalIndex,
+                  onDelete: () => _deleteTrip(originalIndex),
+                );
+              },
+              childCount: dateTrips.length,
+            ),
+          ),
+        ),
+      );
+    }
+    
+    return slivers;
+  }
+
+  String _formatDayHeader(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final tripDate = DateTime(date.year, date.month, date.day);
+
+    if (tripDate == today) return 'Hoy';
+    if (tripDate == yesterday) return 'Ayer';
+    
+    final months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    final days = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    
+    return '${days[date.weekday]}, ${date.day} de ${months[date.month - 1]}';
+  }
+
+  Widget _buildCalcResult(String label, String value, {bool isBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: isBold ? FontWeight.w900 : FontWeight.normal,
+              color: isBold ? Colors.green.shade700 : Colors.black,
+            ),
+          ),
+        ],
       ),
     );
   }

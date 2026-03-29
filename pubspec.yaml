@@ -9,22 +9,24 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  camera: ^0.11.2
-  google_mlkit_text_recognition: ^0.12.0
-  permission_handler: ^11.0.1
+  camera: ^0.12.0+1
+  google_mlkit_text_recognition: ^0.15.1
+  permission_handler: ^12.0.1
   path_provider: ^2.1.1
   image_picker: ^1.0.4
   shared_preferences: ^2.2.2
   http: ^1.5.0
   http_parser: ^4.0.2
-  uuid: ^3.0.0
+  uuid: ^4.5.3
   path: ^1.8.3
-  mime: ^1.0.4
+  mime: ^2.0.0
+  google_fonts: ^8.0.2
+  image: ^4.8.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true

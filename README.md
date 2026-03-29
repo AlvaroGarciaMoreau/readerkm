@@ -6,6 +6,8 @@ Una aplicación Flutter para Android que permite leer automáticamente los datos
 
 - **📸 Escaneo automático**: Utiliza la cámara para capturar el cuadro de instrumentos
 - **🤖 OCR inteligente**: Extrae automáticamente kilómetros recorridos, consumo (km/L y L/100km), tiempo de viaje y odómetro total
+- **✨ Preprocesamiento de imagen**: Mejora la lectura en condiciones de baja luminosidad mediante filtros de escala de grises y contraste dinámico
+- **🧠 Anclaje contextual**: Utiliza el contexto visual ("Viaje actual") para localizar datos con precisión milimétrica
 - **☁️ Sincronización remota**: Guarda, lee y borra viajes en una base de datos MariaDB remota mediante backend PHP seguro
 - **📧 Sincronización por email**: Cada usuario puede sincronizar sus viajes usando su correo electrónico
 - **💾 Almacenamiento local**: Modo offline disponible para guardar viajes localmente sin conexión
@@ -41,6 +43,7 @@ Este proyecto fue desarrollado y probado específicamente con un **Hyundai Tucso
 - **Dart**: Lenguaje de programación
 - **Camera Plugin**: Acceso a la cámara del dispositivo
 - **Google ML Kit**: Reconocimiento de texto (OCR)
+- **Image handling**: Procesamiento y filtrado de imagen para OCR optimizado
 - **SharedPreferences**: Persistencia de datos local
 - **Permission Handler**: Gestión de permisos
 - **HTTP**: Comunicación con backend remoto
@@ -188,7 +191,9 @@ El sistema utiliza un algoritmo de reconocimiento contextual específicamente op
 
 ### Reconocimiento Inteligente por Contexto:
 - **Análisis posicional**: Examina el texto línea por línea para identificar contextos
+- **Anclaje semántico**: Utiliza "Viaje actual" como punto de referencia para encontrar datos numéricos adyacentes
 - **Filtrado inteligente**: Ignora automáticamente la autonomía restante (ej: "280 km" con surtidor)
+- **Preprocesamiento dinámico**: Aplica filtros de contraste y escala de grises para resaltar números blancos sobre fondos negros
 - **Validación por rangos**: Cada tipo de dato tiene rangos de validación específicos
 
 ### Detección Específica por Tipo:
@@ -200,7 +205,8 @@ El sistema utiliza un algoritmo de reconocimiento contextual específicamente op
 
 #### ⛽ **Consumo (km/L y L/100km)**:
 - **Patrones km/L**: `13.7 km/L`, `13.7km/L`, `13.7 KM/L`
-- **Patrones L/100km**: `6.8 L/100km`, `6.8l/100km`, `6.8hookm` (errores OCR)
+- **Patrones L/100km**: `6.8 L/100km`, `6.8l/100km`, `6.8hookm`, `6.8 1/100km`, `6.8 !/100km`
+- **Tolerancia a errores**: Corrige automáticamente lecturas erróneas como `i/100km` o `hookm`
 - **Rango válido km/L**: 5 - 50 km/L (típico para híbridos)
 - **Rango válido L/100km**: 2 - 20 L/100km
 - **Detección dual**: Reconoce automáticamente ambas unidades
@@ -326,6 +332,13 @@ Las contribuciones son bienvenidas. Para contribuir:
 5. Abre un Pull Request
 
 ## 🔄 Historial de Versiones
+
+### v2.3.0 - Optimización OCR y Estabilidad (Septiembre 2025)
+- ✅ **Preprocesamiento de Imagen**: Implementado filtrado de contraste y escala de grises para entornos con poca luz.
+- ✅ **Anclaje Contextual**: Refactorizada la extracción para usar "Viaje actual" como ancla semántica.
+- ✅ **Regex de Alta Robustez**: Añadido soporte para errores OCR comunes (`1/100`, `!/100`, `hookm`).
+- ✅ **Corrección de Errores de UI**: Resueltos problemas de truncación y sintaxis en la pantalla principal.
+- ✅ **Mejora de Precisión**: Incrementada significativamente la tasa de éxito en capturas nocturnas.
 
 ### v2.2.0 - Correcciones y Estabilidad (Septiembre 2025)
 - ✅ **Corrección de errores críticos**: Resueltos todos los errores de compilación

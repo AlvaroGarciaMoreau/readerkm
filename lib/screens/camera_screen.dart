@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:image/image.dart' as img;
 import '../main.dart';
 import '../models/trip_data.dart';
 import '../services/image_upload_service.dart';
@@ -74,96 +79,105 @@ class _CameraScreenState extends State<CameraScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Escaner'),
-        backgroundColor: Colors.black87,
+        title: const Text('Escanear Cuadro'),
+        backgroundColor: Colors.black,
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
       backgroundColor: Colors.black,
       body: _isInitialized
           ? Stack(
               children: [
-                CameraPreview(_controller!),
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
+                  child: CameraPreview(_controller!),
+                ),
                 _buildOverlay(),
                 _buildCaptureButton(),
                 if (_isProcessing) _buildProcessingIndicator(),
               ],
             )
           : const Center(
-              child: CircularProgressIndicator(),
+              child: CircularProgressIndicator(color: Colors.white),
             ),
     );
   }
 
   Widget _buildOverlay() {
     return Center(
-      child: Container(
-        width: MediaQuery.of(context).size.width * 0.8,
-        height: MediaQuery.of(context).size.height * 0.4,
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: Colors.white,
-            width: 2,
-          ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.speed,
-              color: Colors.white,
-              size: 48,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: MediaQuery.of(context).size.width * 0.85,
+            height: MediaQuery.of(context).size.height * 0.35,
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.8),
+                width: 3,
+              ),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 40,
+                  spreadRadius: 5,
+                ),
+              ],
             ),
-            SizedBox(height: 16),
-            Text(
-              'Encuadra el cuadro de instrumentos',
+          ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(100),
+            ),
+            child: const Text(
+              'Encuadra los datos de consumo y km',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: FontWeight.bold,
               ),
               textAlign: TextAlign.center,
             ),
-            SizedBox(height: 8),
-            Text(
-              'Asegúrate de que los datos de kilometraje\ny consumo sean visibles',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildCaptureButton() {
     return Positioned(
-      bottom: 50,
+      bottom: 60,
       left: 0,
       right: 0,
       child: Center(
         child: GestureDetector(
           onTap: _isProcessing ? null : _captureAndProcess,
           child: Container(
-            width: 80,
-            height: 80,
+            width: 84,
+            height: 84,
+            padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _isProcessing ? Colors.grey : Colors.white,
-              border: Border.all(
-                color: Colors.white,
-                width: 4,
-              ),
+              border: Border.all(color: Colors.white, width: 4),
             ),
-            child: Icon(
-              Icons.camera_alt,
-              size: 40,
-              color: _isProcessing ? Colors.white : Colors.black,
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _isProcessing ? Colors.grey : Colors.white,
+              ),
+              child: Icon(
+                Icons.camera_alt_rounded,
+                size: 36,
+                color: _isProcessing ? Colors.white70 : Colors.black87,
+              ),
             ),
           ),
         ),
@@ -173,18 +187,20 @@ class _CameraScreenState extends State<CameraScreen> {
 
   Widget _buildProcessingIndicator() {
     return Container(
-      color: Colors.black54,
-      child: const Center(
+      color: Colors.black.withValues(alpha: 0.8),
+      child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(color: Colors.white),
-            SizedBox(height: 16),
-            Text(
-              'Procesando imagen...',
+            const CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+            const SizedBox(height: 24),
+            const Text(
+              'ANALIZANDO DATOS...',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 18,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2,
               ),
             ),
           ],
@@ -202,8 +218,11 @@ class _CameraScreenState extends State<CameraScreen> {
 
     try {
       final XFile photo = await _controller!.takePicture();
-      _lastCapturedImagePath = photo.path; // ← NUEVO: Guardar path
-      final String recognizedText = await _processImage(photo.path);
+      _lastCapturedImagePath = photo.path;
+      
+      // Preprocesar antes de OCR para mejorar lectura en baja luz
+      final String processedPath = await _preprocessImage(photo.path);
+      final String recognizedText = await _processImage(processedPath);
       
       if (mounted) {
         _showResultsDialog(recognizedText);
@@ -234,32 +253,56 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
-  void _showResultsDialog(String recognizedText) {
-    // DEBUG: Log OCR text for troubleshooting
-    assert(() {
-      // Solo en modo debug
-      debugPrint('--- TEXTO OCR COMPLETO ---');
-      debugPrint(recognizedText);
-      debugPrint('-------------------------');
-      final lines = recognizedText.split('\n');
-      for (var i = 0; i < lines.length; i++) {
-        debugPrint('Línea $i: ${lines[i]}');
+  Future<String> _preprocessImage(String originalPath) async {
+    try {
+      final File imageFile = File(originalPath);
+      final List<int> imageBytes = await imageFile.readAsBytes();
+      
+      img.Image? image = img.decodeImage(Uint8List.fromList(imageBytes));
+      if (image == null) return originalPath;
+
+      // 1. Convertir a escala de grises
+      image = img.grayscale(image);
+      
+      // 2. Aumentar contraste significativamente (ayuda mucho en pantallas digitales)
+      image = img.contrast(image, contrast: 150); // Valor de 0 a 255
+      
+      // 3. Opcional: Redimensionar si es muy grande para acelerar proceso (opcional)
+      if (image.width > 1200) {
+        image = img.copyResize(image, width: 1200);
       }
+
+      final tempDir = await getTemporaryDirectory();
+      final String processedPath = p.join(tempDir.path, 'processed_ocr_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      
+      final List<int> processedBytes = img.encodeJpg(image, quality: 85);
+      await File(processedPath).writeAsBytes(processedBytes);
+      
+      return processedPath;
+    } catch (e) {
+      debugPrint('Error en preprocesamiento: $e');
+      return originalPath; // Fallback a original
+    }
+  }
+
+  void _showResultsDialog(String recognizedText) {
+    assert(() {
+      debugPrint('--- OCR TEXT ---');
+      debugPrint(recognizedText);
       return true;
     }());
     final extractedData = _extractVehicleData(recognizedText);
     
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => ResultsDialog(
         recognizedText: recognizedText,
         extractedData: extractedData,
         defaultFuelPrice: widget.defaultFuelPrice,
-        imagePath: _lastCapturedImagePath, // ← NUEVO: Pasar path de imagen
+        imagePath: _lastCapturedImagePath,
         onSave: (tripData) {
-          // Cerrar el diálogo primero
           Navigator.pop(context);
-          // Luego regresar a la pantalla anterior con los datos
           Navigator.pop(context, tripData);
         },
       ),
@@ -272,96 +315,37 @@ class _CameraScreenState extends State<CameraScreen> {
       'tripKm': null,
       'consumption': null,
       'travelTime': null,
-      'consumptionUnit': 'L/100km', // por defecto
-      'consumptionOriginal': null, // valor original detectado
+      'consumptionUnit': 'L/100km',
+      'consumptionOriginal': null,
     };
 
-    // Dividir el texto en líneas para análisis posicional
-    final lines = text.split('\n');
+    final lines = text.split('\n').map((l) => l.trim()).toList();
 
-    // Detectar si el consumo está en km/L o L/100km (más robusto)
-    final l100kmPatterns = [
-      RegExp(r'(\d+[.,]?\d*)\s*[lL]\s*/\s*100\s*[kK][mM]', caseSensitive: false),
-      RegExp(r'(\d+[.,]?\d*)[lL]/?100[kK][mM]', caseSensitive: false),
-      // Detectar cualquier letra antes de 'ookm' (errores de OCR como Yookm, hookm, lookm, etc)
-      RegExp(r'(\d+[.,]?\d*)[a-zA-Z]ookm', caseSensitive: false),
-    ];
+    // 1. Buscar ancla contextual "Viaje actual"
+    final anchorPattern = RegExp(r'(viaje|actual|trip|vi.je|act.al)', caseSensitive: false);
+    int anchorIndex = -1;
+    for (int i = 0; i < lines.length; i++) {
+      if (anchorPattern.hasMatch(lines[i])) {
+        anchorIndex = i;
+        break;
+      }
+    }
 
+    // 2. Extraer Consumo (prioridad)
     double? consumptionValue;
     String consumptionUnit = 'L/100km';
 
-    // Buscar consumo en cada línea
-    for (final line in lines) {
-      // Buscar L/100km
-      for (final l100kmPattern in l100kmPatterns) {
-        final l100kmMatch = l100kmPattern.firstMatch(line);
-        if (l100kmMatch != null) {
-          final l100kmStr = l100kmMatch.group(1)?.replaceAll(',', '.');
-          final l100km = double.tryParse(l100kmStr ?? '');
-          if (l100km != null && l100km > 0) {
-            consumptionValue = l100km;
-            consumptionUnit = 'L/100km';
-            data['consumptionOriginal'] = l100km;
-            break;
-          }
-        }
-      }
-      if (consumptionValue != null) break;
-      // Buscar km/L
-      final kmLPatterns = [
-        RegExp(r'(\d+[.,]?\d*)\s*[kK][mM]\s*/\s*[lL]', caseSensitive: false),
-        RegExp(r'(\d+[.,]?\d*)[kK][mM]/?[lL]', caseSensitive: false),
-  // Permitir valores como 'xx.x km/' y asumir km/L
-  RegExp(r'(\d+[.,]?\d*)\s*[kK][mM]\s*/', caseSensitive: false),
-      ];
-      for (final kmLPattern in kmLPatterns) {
-        final kmLMatch = kmLPattern.firstMatch(line);
-        if (kmLMatch != null) {
-          final kmLStr = kmLMatch.group(1)?.replaceAll(',', '.');
-          final kmL = double.tryParse(kmLStr ?? '');
-          if (kmL != null && kmL > 0) {
-            consumptionValue = kmL;
-            consumptionUnit = 'km/L';
-            data['consumptionOriginal'] = kmL;
-            break;
-          }
-        }
-      }
-      if (consumptionValue != null) break;
-      // Fallback: buscar patrones simples pegados
-      final fallbackL100 = RegExp(r'(\d+[.,]\d+)[l1iI][/\\]?[1iIlL][0Oo]{2}[kK][mM]').firstMatch(line);
-      if (fallbackL100 != null) {
-        final l100kmStr = fallbackL100.group(1)?.replaceAll(',', '.');
-        final l100km = double.tryParse(l100kmStr ?? '');
-        if (l100km != null && l100km > 0) {
-          consumptionValue = l100km;
-          consumptionUnit = 'L/100km';
-          data['consumptionOriginal'] = l100km;
-          break;
-        }
-      }
-      final fallbackKmL = RegExp(r'(\d+[.,]\d+)[kK][mM][/\\]?[lL1iI]').firstMatch(line);
-      if (fallbackKmL != null) {
-        final kmLStr = fallbackKmL.group(1)?.replaceAll(',', '.');
-        final kmL = double.tryParse(kmLStr ?? '');
-        if (kmL != null && kmL > 0) {
-          consumptionValue = kmL;
-          consumptionUnit = 'km/L';
-          data['consumptionOriginal'] = kmL;
-          break;
-        }
-      }
-    }
-
-    // Si no se detectó con los patrones nuevos, usar el método anterior
-    if (consumptionValue == null) {
-      consumptionValue = _extractConsumption(lines);
-      consumptionUnit = 'km/L';
+    // Intentar extraer consumo cerca del ancla o en todo el texto
+    final helperData = _extractConsumptionWithUnit(lines, anchorIndex: anchorIndex);
+    if (helperData != null) {
+      consumptionValue = helperData['value'];
+      consumptionUnit = helperData['unit'];
       data['consumptionOriginal'] = consumptionValue;
     }
 
-    // BUSCAR DATOS ESPECÍFICOS CON CONTEXTO POSICIONAL
-    data['tripKm'] = _extractTripKilometers(lines);
+    // 3. Extraer Kilómetros de Viaje
+    data['tripKm'] = _extractTripKilometers(lines, anchorIndex: anchorIndex);
+    
     data['consumption'] = consumptionValue;
     data['consumptionUnit'] = consumptionUnit;
     data['travelTime'] = _extractTravelTime(lines);
@@ -370,91 +354,124 @@ class _CameraScreenState extends State<CameraScreen> {
     return data;
   }
 
-  // Extraer kilómetros de viaje (buscar valores pequeños con contexto de "viaje actual")
-  double? _extractTripKilometers(List<String> lines) {
-    // Buscar líneas que contengan "viaje", "actual", "trip" o estén cerca de estos contextos
+  double? _extractTripKilometers(List<String> lines, {int anchorIndex = -1}) {
+    // 1. Si tenemos ancla, buscar justo debajo (línea +1 o +2)
+    if (anchorIndex != -1) {
+      for (int i = anchorIndex + 1; i <= anchorIndex + 4 && i < lines.length; i++) {
+        // En los Hyundai/Kia, el primer dato tras el ancla es la distancia
+        // Suele tener decimales: "16.8 km"
+        final kmMatch = RegExp(r'(\d+[.,]\d+)\s*k[mr]n?', caseSensitive: false).firstMatch(lines[i]);
+        if (kmMatch != null) {
+          final kmStr = kmMatch.group(1)?.replaceAll(',', '.');
+          final val = double.tryParse(kmStr ?? '');
+          if (val != null && val >= 0.1 && val < 500) return val;
+        }
+      }
+    }
+
+    // 2. Fallback: búsqueda general con contexto
+    final contextPattern = RegExp(r'(viaje|actual|trip|vi.je|act.al)', caseSensitive: false);
     for (int i = 0; i < lines.length; i++) {
-      final line = lines[i].toLowerCase();
-      // Si encuentra contexto de viaje, buscar números en líneas cercanas
-      if (line.contains('viaje') || line.contains('actual') || line.contains('trip')) {
-        // Buscar en las siguientes 3 líneas
+      if (contextPattern.hasMatch(lines[i])) {
         for (int j = i; j < i + 4 && j < lines.length; j++) {
-          final kmMatch = RegExp(r'(\d+(?:[.,]\d+)?)\s*km(?!\s*/)', caseSensitive: false)
-              .firstMatch(lines[j]);
+          final kmMatch = RegExp(r'(\d+[.,]\d+)\s*k[mr]n?', caseSensitive: false).firstMatch(lines[j]);
           if (kmMatch != null) {
             final kmStr = kmMatch.group(1)?.replaceAll(',', '.');
-            final kmValue = double.tryParse(kmStr ?? '');
-            // Validar que sea un valor típico de viaje (entre 0.1 y 999 km)
-            if (kmValue != null && kmValue >= 0.1 && kmValue < 1000) {
-              return kmValue;
-            }
+            final val = double.tryParse(kmStr ?? '');
+            if (val != null && val >= 0.1 && val < 500) return val;
           }
         }
       }
     }
-    // Fallback: buscar el menor valor de km que no sea consumo
+
+    // 3. Último recurso: cualquier valor con decimales entre 0.1 y 300 km
     final allKmValues = <double>[];
     for (final line in lines) {
-      final matches = RegExp(r'(\d+(?:[.,]\d+)?)\s*km(?!\s*/)', caseSensitive: false)
-          .allMatches(line);
-      for (final match in matches) {
-        final kmStr = match.group(1)?.replaceAll(',', '.');
-        final kmValue = double.tryParse(kmStr ?? '');
-        if (kmValue != null && kmValue >= 0.1 && kmValue < 1000) {
-          allKmValues.add(kmValue);
+      final matches = RegExp(r'(\d+[.,]\d+)\s*k[mr]n?', caseSensitive: false).allMatches(line);
+      for (final m in matches) {
+        final valStr = m.group(1);
+        if (valStr != null) {
+          final val = double.tryParse(valStr.replaceAll(',', '.'));
+          if (val != null && val >= 0.1 && val < 300) allKmValues.add(val);
         }
       }
     }
+
     if (allKmValues.isNotEmpty) {
       allKmValues.sort();
-      final tripKm = allKmValues.first; // El más pequeño probablemente es el viaje
-      return tripKm;
+      return allKmValues.first;
     }
     return null;
   }
 
-  // Extraer consumo km/L (buscar patrones específicos de consumo)
-  double? _extractConsumption(List<String> lines) {
-    final l100kmPatterns = [
-      RegExp(r'(\d+[.,]?\d*)\s*[lL]\s*/\s*100\s*[kK][mM]', caseSensitive: false),
-      RegExp(r'(\d+[.,]?\d*)[lL]/?100[kK][mM]', caseSensitive: false),
-      RegExp(r'(\d+[.,]?\d*)hookm', caseSensitive: false),
-    ];
+  Map<String, dynamic>? _extractConsumptionWithUnit(List<String> lines, {int anchorIndex = -1}) {
+    // 1. Si hay ancla, buscar en las líneas siguientes (típicamente línea +3 o +4)
+    if (anchorIndex != -1) {
+      for (int i = anchorIndex + 1; i <= anchorIndex + 5 && i < lines.length; i++) {
+        final result = _extractConsumptionFromLine(lines[i]);
+        if (result != null) return result;
+      }
+    }
+
+    // 2. Búsqueda exhaustiva por todo el texto
     for (final line in lines) {
-      for (final l100kmPattern in l100kmPatterns) {
-        final match = l100kmPattern.firstMatch(line);
-        if (match != null) {
-          final l100kmStr = match.group(1)?.replaceAll(',', '.');
-          final l100km = double.tryParse(l100kmStr ?? '');
-          if (l100km != null && l100km > 0) {
-            return 100 / l100km;
-          }
-        }
-      }
-      final kmLPattern = RegExp(r'(\d+[.,]?\d*)\s*[kK][mM]\s*/\s*[lL]', caseSensitive: false);
-      final kmLMatch = kmLPattern.firstMatch(line);
-      if (kmLMatch != null) {
-        final kmLStr = kmLMatch.group(1)?.replaceAll(',', '.');
-        final kmL = double.tryParse(kmLStr ?? '');
-        if (kmL != null && kmL > 0) {
-          return kmL;
-        }
-      }
+      final result = _extractConsumptionFromLine(line);
+      if (result != null) return result;
     }
+
     return null;
   }
 
-  // Extraer kilómetros totales del vehículo (valores grandes, típicamente >1000)
+  Map<String, dynamic>? _extractConsumptionFromLine(String line) {
+    // Patrones para L/100km (muy robustos para errores OCR)
+    final l100kmPatterns = [
+      // Estándar: "4.1 L/100km"
+      RegExp(r'(\d+[.,]?\d*)\s*[lL1i!|]\s*/?\s*100\s*[kK][mM]', caseSensitive: false),
+      // Error común "hookm": "4.1 hookm" o "4.1 L/hookm"
+      RegExp(r'(\d+[.,]?\d*)\s*[lL1i!|]?\s*/?\s*[hH][oO][oO][kK][mM]', caseSensitive: false),
+      // Sin unidad final: "4.1 L/100"
+      RegExp(r'(\d+[.,]?\d*)\s*[lL1i!|]\s*/\s*100', caseSensitive: false),
+    ];
+    
+    for (final pattern in l100kmPatterns) {
+      final match = pattern.firstMatch(line);
+      if (match != null) {
+        final valStr = match.group(1)?.replaceAll(',', '.');
+        final val = double.tryParse(valStr ?? '');
+        if (val != null && val > 0 && val < 50) { // Consumo realista
+          return {'value': val, 'unit': 'L/100km'};
+        }
+      }
+    }
+
+    // Patrones para km/L
+    final kmLPatterns = [
+      RegExp(r'(\d+[.,]?\d*)\s*[kK][mM]\s*/\s*[lL1i!|]', caseSensitive: false),
+      RegExp(r'(\d+[.,]?\d*)\s*[kK][mM]/[lL1i!|]', caseSensitive: false),
+    ];
+
+    for (final pattern in kmLPatterns) {
+      final match = pattern.firstMatch(line);
+      if (match != null) {
+        final valStr = match.group(1)?.replaceAll(',', '.');
+        final val = double.tryParse(valStr ?? '');
+        if (val != null && val > 0 && val < 50) {
+          return {'value': val, 'unit': 'km/L'};
+        }
+      }
+    }
+
+    return null;
+  }
+
   double? _extractTotalKilometers(List<String> lines) {
     final allKmValues = <double>[];
-    
     for (final line in lines) {
       final matches = RegExp(r'(\d+(?:[.,]\d+)?)\s*km(?!\s*/)', caseSensitive: false)
           .allMatches(line);
       for (final match in matches) {
         final kmStr = match.group(1)?.replaceAll(',', '.');
         final kmValue = double.tryParse(kmStr ?? '');
-        // Buscar valores grandes típicos del odómetro total
         if (kmValue != null && kmValue >= 1000) {
           allKmValues.add(kmValue);
         }
@@ -462,8 +479,7 @@ class _CameraScreenState extends State<CameraScreen> {
     }
     if (allKmValues.isNotEmpty) {
       allKmValues.sort();
-      final totalKm = allKmValues.last; // El más grande probablemente es el total
-      return totalKm;
+      return allKmValues.last;
     }
     return null;
   }
@@ -480,7 +496,7 @@ class ResultsDialog extends StatefulWidget {
   final String recognizedText;
   final Map<String, dynamic> extractedData;
   final double defaultFuelPrice;
-  final String? imagePath; // ← NUEVO
+  final String? imagePath;
   final Function(TripData) onSave;
 
   const ResultsDialog({
@@ -488,7 +504,7 @@ class ResultsDialog extends StatefulWidget {
     required this.recognizedText,
     required this.extractedData,
     required this.defaultFuelPrice,
-    this.imagePath, // ← NUEVO
+    this.imagePath,
     required this.onSave,
   });
 
@@ -504,389 +520,274 @@ class _ResultsDialogState extends State<ResultsDialog> {
   String _manualConsumptionUnit = 'km/L';
   bool _isSaving = false;
 
-
   @override
   void initState() {
     super.initState();
-    // Extraer y asignar los datos automáticamente
     final tripKm = widget.extractedData['tripKm'];
     final consumption = widget.extractedData['consumption'];
     final consumptionUnit = widget.extractedData['consumptionUnit'] ?? 'L/100km';
+    
     _tripKmController.text = tripKm != null ? tripKm.toString() : '';
     _consumptionController.text = consumption != null ? consumption.toStringAsFixed(2) : '';
     _fuelPriceController = TextEditingController(
       text: widget.defaultFuelPrice.toStringAsFixed(2),
     );
-    // Si el consumo no fue reconocido, dejar elegir la unidad manualmente
-    if (widget.extractedData['consumption'] == null) {
-      _manualConsumptionUnit = 'L/100km';
-    } else {
-      _manualConsumptionUnit = consumptionUnit;
-    }
+    _manualConsumptionUnit = (consumption != null && consumption > 0) 
+        ? consumptionUnit 
+        : 'L/100km';
+    
     _tripKmController.addListener(_updateCalculation);
     _consumptionController.addListener(_updateCalculation);
     _fuelPriceController.addListener(_updateCalculation);
   }
 
+  void _updateCalculation() => setState(() {});
 
-  
-  void _updateCalculation() {
-    setState(() {
-      // El build se ejecutará de nuevo y mostrará el cálculo actualizado
-    });
+  @override
+  void dispose() {
+    _tripKmController.removeListener(_updateCalculation);
+    _consumptionController.removeListener(_updateCalculation);
+    _fuelPriceController.removeListener(_updateCalculation);
+    _tripKmController.dispose();
+    _consumptionController.dispose();
+    _fuelPriceController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Datos Extraídos'),
-      content: SizedBox(
-        width: double.maxFinite,
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Dialog(
+      backgroundColor: Colors.white,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      child: Container(
+        padding: const EdgeInsets.all(24),
         child: SingleChildScrollView(
           child: Form(
             key: _formKey,
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Mostrar texto reconocido
-                ExpansionTile(
-                  title: const Text(
-                    'Texto reconocido',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                  ),
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        widget.recognizedText.isEmpty
-                            ? 'No se pudo reconocer texto'
-                            : widget.recognizedText,
-                        style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
-                      ),
-                    ),
-                  ],
+                Text(
+                  'Confirmar Datos',
+                  style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: colorScheme.primary),
+                  textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
+                Text(
+                  'Revisa que la detección automática sea correcta.',
+                  style: textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
                 
-                // Mostrar qué se detectó automáticamente
+                // OCR Insight Pill
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue.shade200),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.blue.shade100),
                   ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        '🤖 Detección automática:',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
-                      ),
-                      const SizedBox(height: 8),
-                      _buildDetectionRow(
-                        icon: Icons.speed,
-                        label: 'Kilómetros',
-                        value: widget.extractedData['tripKm'],
-                        unit: 'km',
-                      ),
-                      _buildDetectionRow(
-                        icon: Icons.local_gas_station,
-                        label: 'Consumo',
-                        value: widget.extractedData['consumption'],
-                        unit: 'km/L',
-                      ),
-                      _buildDetectionRowString(
-                        icon: Icons.schedule,
-                        label: 'Tiempo',
-                        value: widget.extractedData['travelTime'],
-                        unit: '',
-                      ),
-                      _buildDetectionRow(
-                        icon: Icons.car_crash,
-                        label: 'Km totales',
-                        value: widget.extractedData['totalKm'],
-                        unit: 'km',
-                      ),
+                      _buildDetectionItem(Icons.route, 'KM Viaje', widget.extractedData['tripKm']),
+                      const Divider(height: 12),
+                      _buildDetectionItem(Icons.local_gas_station, 'Consumo detectado', widget.extractedData['consumption'], isConsumption: true),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
                 
-                // Campos editables
-                const Text(
-                  'Confirma o edita los datos:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
+                // Input Fields (Larger for presbyopia)
+                _buildFieldLabel('DISTANCIA RECORRIDA (km)'),
                 TextFormField(
                   controller: _tripKmController,
-                  decoration: const InputDecoration(
-                    labelText: 'Kilómetros del viaje',
-                    suffixText: 'km',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Por favor ingresa los kilómetros';
-                    }
-                    if (double.tryParse(value) == null) {
-                      return 'Por favor ingresa un número válido';
-                    }
-                    return null;
-                  },
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: _inputDecoration('Ej: 120.5'),
+                  validator: (v) => (v == null || v.isEmpty) ? 'Requerido' : null,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 20),
+                
+                _buildFieldLabel('CONSUMO MEDIO'),
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
+                      flex: 2,
                       child: TextFormField(
                         controller: _consumptionController,
-                        decoration: InputDecoration(
-                          labelText: 'Consumo',
-                          suffixText: _manualConsumptionUnit,
-                          border: const OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor ingresa el consumo';
-                          }
-                          if (double.tryParse(value) == null) {
-                            return 'Por favor ingresa un número válido';
-                          }
-                          return null;
-                        },
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: _inputDecoration('Ej: 5.4'),
+                        validator: (v) => (v == null || v.isEmpty) ? 'Requerido' : null,
                       ),
                     ),
-                    if (widget.extractedData['consumption'] == null)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8.0),
-                        child: DropdownButton<String>(
-                          value: _manualConsumptionUnit,
-                          items: const [
-                            DropdownMenuItem(value: 'km/L', child: Text('km/L')),
-                            DropdownMenuItem(value: 'L/100km', child: Text('L/100km')),
-                          ],
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() {
-                                _manualConsumptionUnit = value;
-                              });
-                            }
-                          },
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 1,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _manualConsumptionUnit,
+                            isExpanded: true,
+                            items: const [
+                              DropdownMenuItem(value: 'km/L', child: Text('km/L', style: TextStyle(fontSize: 12))),
+                              DropdownMenuItem(value: 'L/100km', child: Text('L/100km', style: TextStyle(fontSize: 12))),
+                            ],
+                            onChanged: (v) => setState(() => _manualConsumptionUnit = v!),
+                          ),
                         ),
                       ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 20),
+                
+                _buildFieldLabel('PRECIO GASOLINA (€/L)'),
                 TextFormField(
                   controller: _fuelPriceController,
-                  decoration: const InputDecoration(
-                    labelText: 'Precio de la gasolina',
-                    suffixText: '€/L',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Por favor ingresa el precio de la gasolina';
-                    }
-                    if (double.tryParse(value) == null) {
-                      return 'Por favor ingresa un número válido';
-                    }
-                    return null;
-                  },
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: _inputDecoration('Ej: 1.59'),
+                  validator: (v) => (v == null || v.isEmpty) ? 'Requerido' : null,
                 ),
-                const SizedBox(height: 16),
-                _buildCostCalculation(),
+                
+                const SizedBox(height: 32),
+                
+                // RESULTS SUMMARY
+                _buildResultPill(),
+                
+                const SizedBox(height: 32),
+                
+                ElevatedButton(
+                  onPressed: _isSaving ? null : _saveTrip,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: _isSaving 
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                    : const Text('GUARDAR VIAJE', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('CANCELAR', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+                ),
               ],
             ),
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
-        ),
-        ElevatedButton(
-          onPressed: _isSaving ? null : _saveTrip,
-          child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Guardar Viaje'),
+    );
+  }
+
+  Widget _buildFieldLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, left: 4),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.1, color: Colors.grey.shade600),
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.grey.shade50,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
+    );
+  }
+
+  Widget _buildDetectionItem(IconData icon, String label, dynamic value, {bool isConsumption = false}) {
+    final detected = value != null;
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: detected ? Colors.blue.shade700 : Colors.grey),
+        const SizedBox(width: 8),
+        Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+        const Spacer(),
+        Text(
+          detected ? (isConsumption ? '${widget.extractedData['consumptionOriginal'] ?? value.toStringAsFixed(1)} ${widget.extractedData['consumptionUnit']}' : '${value.toStringAsFixed(1)} km') : 'No detectado',
+          style: TextStyle(
+            fontSize: 13, 
+            fontWeight: FontWeight.w900, 
+            color: detected ? Colors.blue.shade900 : Colors.red.shade300,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildDetectionRow({
-    required IconData icon,
-    required String label,
-    required double? value,
-    required String unit,
-  }) {
-    final isDetected = value != null;
-    String displayValue = isDetected ? value.toStringAsFixed(2) : 'No detectado';
-    if (label == 'Consumo' && widget.extractedData['consumptionUnit'] == 'L/100km' && widget.extractedData['consumptionOriginal'] != null) {
-      displayValue = '${widget.extractedData['consumptionOriginal']} L/100km';
-    }
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: Colors.blue),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '$label: ${isDetected ? displayValue : 'No detectado'}',
-              style: TextStyle(
-                fontSize: 12,
-                color: isDetected ? Colors.green.shade700 : Colors.red.shade700,
-                fontWeight: isDetected ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ),
-          Icon(
-            isDetected ? Icons.check_circle : Icons.error,
-            size: 16,
-            color: isDetected ? Colors.green : Colors.red,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetectionRowString({
-    required IconData icon,
-    required String label,
-    required String? value,
-    required String unit,
-  }) {
-    final isDetected = value != null && value.isNotEmpty;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: Colors.blue),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '$label: ${isDetected ? '$value $unit' : 'No detectado'}',
-              style: TextStyle(
-                fontSize: 12,
-                color: isDetected ? Colors.green.shade700 : Colors.red.shade700,
-                fontWeight: isDetected ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ),
-          Icon(
-            isDetected ? Icons.check_circle : Icons.error,
-            size: 16,
-            color: isDetected ? Colors.green : Colors.red,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCostCalculation() {
-    final tripKm = double.tryParse(_tripKmController.text) ?? 0;
-    final consumption = double.tryParse(_consumptionController.text) ?? 0;
-    final fuelPrice = double.tryParse(_fuelPriceController.text) ?? 0;
+  Widget _buildResultPill() {
+    final tripKm = double.tryParse(_tripKmController.text.replaceAll(',', '.')) ?? 0;
+    final consumption = double.tryParse(_consumptionController.text.replaceAll(',', '.')) ?? 0;
+    final fuelPrice = double.tryParse(_fuelPriceController.text.replaceAll(',', '.')) ?? 0;
     final isL100km = _manualConsumptionUnit == 'L/100km';
-    double litersUsed = 0;
-    double totalCost = 0;
+
     double litersPer100Km = 0;
-    double kmPerLiter = 0;
-    if (isL100km && consumption > 0) {
-      litersUsed = (tripKm * consumption) / 100;
-      totalCost = litersUsed * fuelPrice;
+    if (isL100km) {
       litersPer100Km = consumption;
-      kmPerLiter = consumption > 0 ? 100 / consumption : 0;
-    } else if (consumption > 0) {
-      litersUsed = tripKm / consumption;
-      totalCost = litersUsed * fuelPrice;
-      kmPerLiter = consumption;
-      litersPer100Km = tripKm > 0 ? (litersUsed / tripKm) * 100 : 0;
+    } else {
+      litersPer100Km = consumption > 0 ? 100 / consumption : 0;
     }
+    
+    final totalCost = (tripKm / 100) * litersPer100Km * fuelPrice;
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.green.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.green.shade200),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.green.shade200, width: 2),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '💰 Cálculo del Gasto:',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.green,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text('Litros consumidos: ${litersUsed.toStringAsFixed(2)} L'),
-          Text(
-            'Costo total: €${totalCost.toStringAsFixed(2)}',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: Colors.green,
-            ),
-          ),
+          const Text('COSTE ESTIMADO', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.green)),
           const SizedBox(height: 4),
           Text(
-            isL100km
-                ? 'Consumo: ${litersPer100Km.toStringAsFixed(2)} L/100km (${kmPerLiter.toStringAsFixed(2)} km/L)'
-                : 'Consumo: ${kmPerLiter.toStringAsFixed(2)} km/L (${litersPer100Km.toStringAsFixed(2)} L/100km)',
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-              color: Colors.blue,
-            ),
+            '${totalCost.toStringAsFixed(2)} €',
+            style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: Colors.green),
           ),
         ],
       ),
     );
   }
 
-
-
-  void _saveTrip() async {
-    if (_isSaving) return;
+  Future<void> _saveTrip() async {
+    if (!_formKey.currentState!.validate()) return;
     
+    setState(() {
+      _isSaving = true;
+    });
+
     try {
-      if (!_formKey.currentState!.validate()) return;
-      
-      if (!mounted) return;
-      setState(() => _isSaving = true);
-      
-      final tripKm = double.parse(_tripKmController.text);
-      final consumption = double.parse(_consumptionController.text);
-      final fuelPrice = double.parse(_fuelPriceController.text);
+      final tripKm = double.parse(_tripKmController.text.replaceAll(',', '.'));
+      final consumption = double.parse(_consumptionController.text.replaceAll(',', '.'));
+      final fuelPrice = double.parse(_fuelPriceController.text.replaceAll(',', '.'));
       final isL100km = _manualConsumptionUnit == 'L/100km';
-      
-      double litersUsed = 0;
-      double totalCost = 0;
-      double litersPer100Km = 0;
-      if (isL100km && consumption > 0) {
-        litersUsed = (tripKm * consumption) / 100;
-        totalCost = litersUsed * fuelPrice;
-        litersPer100Km = consumption;
-      } else if (consumption > 0) {
-        litersUsed = tripKm / consumption;
-        totalCost = litersUsed * fuelPrice;
-        litersPer100Km = tripKm > 0 ? (litersUsed / tripKm) * 100 : 0;
-      }
+
+      double litersPer100Km = isL100km ? consumption : (consumption > 0 ? 100 / consumption : 0);
+      double totalCost = (tripKm / 100) * litersPer100Km * fuelPrice;
 
       final travelTime = widget.extractedData['travelTime'] as String?;
       final totalKm = widget.extractedData['totalKm'] as double?;
@@ -894,99 +795,20 @@ class _ResultsDialogState extends State<ResultsDialog> {
       String? imageUrl;
       String? imageFilename;
 
-      // Intentar subir imagen si hay path y email configurado
-      if (widget.imagePath != null && mounted) {
-        try {
-          
-          final email = await PreferencesService.loadEmail();
-          
-          if (email != null && email.isNotEmpty && mounted) {
-            // Mostrar indicador de carga de forma segura
-            try {
-              if (mounted) {
-                ScaffoldMessenger.of(context).clearSnackBars();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('📸 Subiendo imagen...'),
-                    backgroundColor: Colors.blue,
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              }
-            } catch (e) {
-              // Ignore errors when showing snackbar
-            }
-            
-            
-            // Agregar timeout para evitar colgarse
-            final uploadResult = await ImageUploadService.uploadTripImage(
-              imagePath: widget.imagePath!,
-              email: email,
-            ).timeout(
-              const Duration(seconds: 30),
-              onTimeout: () {
-                return null;
-              },
-            );
-            
-            
-            if (mounted && uploadResult != null && uploadResult['success'] == true) {
-              imageUrl = uploadResult['url'];
-              imageFilename = uploadResult['filename'];
-              
-              
-              try {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).clearSnackBars();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ Imagen guardada en la nube'),
-                      backgroundColor: Colors.green,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                }
-              } catch (e) {
-                // Ignore errors when showing snackbar
-              }
-            } else {
-              try {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).clearSnackBars();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('⚠️ Viaje guardado, pero imagen no se pudo subir'),
-                      backgroundColor: Colors.orange,
-                      duration: Duration(seconds: 3),
-                    ),
-                  );
-                }
-              } catch (e) {
-                // Ignore errors when showing snackbar
-              }
-            }
-          } else {
-          }
-        } catch (e) {
-          try {
-            if (mounted) {
-              ScaffoldMessenger.of(context).clearSnackBars();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('⚠️ Error subiendo imagen: ${e.toString()}'),
-                  backgroundColor: Colors.orange,
-                  duration: const Duration(seconds: 3),
-                ),
-              );
-            }
-          } catch (e2) {
-            // Ignore errors when showing snackbar
+      if (widget.imagePath != null) {
+        final email = await PreferencesService.loadEmail();
+        if (email != null && email.isNotEmpty) {
+          final uploadResult = await ImageUploadService.uploadTripImage(
+            imagePath: widget.imagePath!,
+            email: email,
+          ).timeout(const Duration(seconds: 45), onTimeout: () => null);
+
+          if (uploadResult != null && uploadResult['success'] == true) {
+            imageUrl = uploadResult['url'];
+            imageFilename = uploadResult['filename'];
           }
         }
-      } else {
       }
-
-      if (!mounted) return;
 
       final tripData = TripData(
         distance: tripKm,
@@ -1003,36 +825,20 @@ class _ResultsDialogState extends State<ResultsDialog> {
       );
 
       if (mounted) {
-        setState(() => _isSaving = false);
         widget.onSave(tripData);
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isSaving = false);
-        try {
-          ScaffoldMessenger.of(context).clearSnackBars();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('❌ Error guardando viaje: ${e.toString()}'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 5),
-            ),
-          );
-        } catch (e2) {
-          // Ignore errors when showing snackbar
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al guardar: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
       }
     }
-  }
-
-  @override
-  void dispose() {
-    _tripKmController.removeListener(_updateCalculation);
-    _consumptionController.removeListener(_updateCalculation);
-    _fuelPriceController.removeListener(_updateCalculation);
-    _tripKmController.dispose();
-    _consumptionController.dispose();
-    _fuelPriceController.dispose();
-    super.dispose();
   }
 }
