@@ -389,7 +389,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 DropdownButtonFormField<String>(
                   initialValue: unit,
                   decoration: const InputDecoration(labelText: 'Unidad', border: OutlineInputBorder()),
-                  items: ['km/L', 'L/100km'].map((String value) {
+                  items: ['L/100km'].map((String value) {
                     return DropdownMenuItem<String>(value: value, child: Text(value));
                   }).toList(),
                   onChanged: (newValue) => setState(() => unit = newValue!),

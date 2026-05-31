@@ -410,13 +410,27 @@ class _CameraScreenState extends State<CameraScreen> {
       for (int i = anchorIndex + 1; i <= anchorIndex + 5 && i < lines.length; i++) {
         final result = _extractConsumptionFromLine(lines[i]);
         if (result != null) return result;
+        // Intentar combinar con la siguiente línea por si el OCR lo ha separado
+        if (i < lines.length - 1) {
+          final combined = '${lines[i]} ${lines[i+1]}';
+          final resultCombined = _extractConsumptionFromLine(combined);
+          if (resultCombined != null) return resultCombined;
+        }
       }
     }
 
     // 2. Búsqueda exhaustiva por todo el texto
-    for (final line in lines) {
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
       final result = _extractConsumptionFromLine(line);
       if (result != null) return result;
+      
+      // Fallback: OCR a menudo separa el número "5.9" de la unidad "L/100km" en dos líneas
+      if (i < lines.length - 1) {
+        final combinedLine = '${lines[i]} ${lines[i+1]}';
+        final combinedResult = _extractConsumptionFromLine(combinedLine);
+        if (combinedResult != null) return combinedResult;
+      }
     }
 
     return null;
@@ -427,6 +441,8 @@ class _CameraScreenState extends State<CameraScreen> {
     final l100kmPatterns = [
       // Estándar: "4.1 L/100km"
       RegExp(r'(\d+[.,]?\d*)\s*[lL1i!|]\s*/?\s*100\s*[kK][mM]', caseSensitive: false),
+      // Error frecuente por icono o textos muy pequeños: "l/1100km", "Yh00km", "ookm", "00km"
+      RegExp(r'(\d+[.,]?\d*)\s*[a-zA-Z/|!1)(}{\]\[\s]{0,8}(?:100|1100|I00|l00|i00|h00|00|oo|o0|0o|O0|0O|OO)\s*[kK][mM]', caseSensitive: false),
       // Error común "hookm": "4.1 hookm" o "4.1 L/hookm"
       RegExp(r'(\d+[.,]?\d*)\s*[lL1i!|]?\s*/?\s*[hH][oO][oO][kK][mM]', caseSensitive: false),
       // Sin unidad final: "4.1 L/100"
@@ -444,22 +460,7 @@ class _CameraScreenState extends State<CameraScreen> {
       }
     }
 
-    // Patrones para km/L
-    final kmLPatterns = [
-      RegExp(r'(\d+[.,]?\d*)\s*[kK][mM]\s*/\s*[lL1i!|]', caseSensitive: false),
-      RegExp(r'(\d+[.,]?\d*)\s*[kK][mM]/[lL1i!|]', caseSensitive: false),
-    ];
 
-    for (final pattern in kmLPatterns) {
-      final match = pattern.firstMatch(line);
-      if (match != null) {
-        final valStr = match.group(1)?.replaceAll(',', '.');
-        final val = double.tryParse(valStr ?? '');
-        if (val != null && val > 0 && val < 50) {
-          return {'value': val, 'unit': 'km/L'};
-        }
-      }
-    }
 
     return null;
   }
@@ -517,7 +518,7 @@ class _ResultsDialogState extends State<ResultsDialog> {
   final _tripKmController = TextEditingController();
   final _consumptionController = TextEditingController();
   late final TextEditingController _fuelPriceController;
-  String _manualConsumptionUnit = 'km/L';
+  String _manualConsumptionUnit = 'L/100km';
   bool _isSaving = false;
 
   @override
@@ -632,24 +633,14 @@ class _ResultsDialogState extends State<ResultsDialog> {
                     Expanded(
                       flex: 1,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        alignment: Alignment.center,
                         height: 60,
                         decoration: BoxDecoration(
                           color: Colors.grey.shade100,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: Colors.grey.shade300),
                         ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _manualConsumptionUnit,
-                            isExpanded: true,
-                            items: const [
-                              DropdownMenuItem(value: 'km/L', child: Text('km/L', style: TextStyle(fontSize: 12))),
-                              DropdownMenuItem(value: 'L/100km', child: Text('L/100km', style: TextStyle(fontSize: 12))),
-                            ],
-                            onChanged: (v) => setState(() => _manualConsumptionUnit = v!),
-                          ),
-                        ),
+                        child: const Text('L/100km', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black54)),
                       ),
                     ),
                   ],
